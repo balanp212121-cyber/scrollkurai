@@ -1,0 +1,182 @@
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // 1. Auth Check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: { headers: { Authorization: authHeader } },
+      }
+    );
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth User Error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Parse User Date (Critical for Timezones)
+    let requestDate = new Date().toISOString().split('T')[0];
+    try {
+      const body = await req.json();
+      if (body.date && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+        requestDate = body.date;
+      }
+    } catch (e) {
+      // Body might be empty, ignore
+    }
+
+    console.log(`Fetching daily quest for User ${user.id} on Date ${requestDate}`);
+
+    // 3. Deterministic Check: Do we have a quest for this DATE?
+    const { data: existingLog, error: logError } = await supabaseClient
+      .from('user_quest_log')
+      .select('*, quests(*)')
+      .eq('user_id', user.id)
+      .eq('assignment_date', requestDate)
+      .maybeSingle();
+
+    if (logError) console.error('Log fetch error:', logError);
+
+    if (existingLog) {
+      console.log('Returning existing quest');
+      return new Response(
+        JSON.stringify({
+          quest: existingLog.quests,
+          log_id: existingLog.id,
+          completed: !!existingLog.completed_at,
+          date: existingLog.assignment_date
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. No Quest Found -> GENERATE ONE (Auto-Heal)
+    console.log('No quest found. Generating new quest...');
+
+    // Get Profile for Archetype
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('archetype')
+      .eq('id', user.id)
+      .single();
+
+    // Avoid repeats from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Note: Use created_at or assignment_date for repeat check
+    const { data: recentLogs } = await supabaseClient
+      .from('user_quest_log')
+      .select('quest_id')
+      .eq('user_id', user.id)
+      .gte('assignment_date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+    const ignoreIds = recentLogs?.map(l => l.quest_id) || [];
+
+    // Select Quest
+    let query = supabaseClient.from('quests').select('id, content, target_archetype');
+
+    if (ignoreIds.length > 0) {
+      query = query.not('id', 'in', `(${ignoreIds.join(',')})`);
+    }
+
+    // Prefer archetype or general
+    if (profile?.archetype) {
+      query = query.or(`target_archetype.eq.${profile.archetype},target_archetype.is.null`);
+    }
+
+    const { data: candidates } = await query.limit(20);
+
+    let selectedQuest;
+    if (candidates && candidates.length > 0) {
+      selectedQuest = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+      // Ultimate fallback: get any quest
+      const { data: fallback } = await supabaseClient.from('quests').select('id, content').limit(1).maybeSingle();
+      selectedQuest = fallback;
+    }
+
+    if (!selectedQuest) {
+      console.error('CRITICAL: No quests available in database');
+      return new Response(
+        JSON.stringify({ error: 'No quests available' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 5. Safe Assign (UPSERT to prevent race conditions)
+    const { data: newLog, error: upsertError } = await supabaseClient
+      .from('user_quest_log')
+      .upsert({
+        user_id: user.id,
+        quest_id: selectedQuest.id,
+        assignment_date: requestDate
+      }, {
+        onConflict: 'user_id, assignment_date',
+        ignoreDuplicates: true
+      })
+      .select('*, quests(*)')
+      .single();
+
+    // If we ignored duplicate (race condition), fetch the winner
+    let finalLog = newLog;
+    if (!finalLog) {
+      const { data: winner } = await supabaseClient
+        .from('user_quest_log')
+        .select('*, quests(*)')
+        .eq('user_id', user.id)
+        .eq('assignment_date', requestDate)
+        .maybeSingle();
+      finalLog = winner;
+    }
+
+    if (!finalLog) {
+      console.error('Final Log Fetch Failed after upsert');
+      throw new Error('Failed to retrieve quest log');
+    }
+
+    return new Response(
+      JSON.stringify({
+        quest: finalLog.quests || selectedQuest, // Fallback if join unimplemented but strictly it should join
+        log_id: finalLog.id,
+        completed: !!finalLog.completed_at,
+        date: finalLog.assignment_date
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in get-daily-quest:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

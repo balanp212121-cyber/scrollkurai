@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Dark gaming theme with vibrant accents */
+    --background: 240 10% 8%;
+    --foreground: 280 5% 98%;
+
+    --card: 240 8% 12%;
+    --card-foreground: 280 5% 98%;
+
+    --popover: 240 8% 12%;
+    --popover-foreground: 280 5% 98%;
+
+    /* Electric purple primary */
+    --primary: 270 80% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Deep purple secondary */
+    --secondary: 260 50% 25%;
+    --secondary-foreground: 280 5% 98%;
+
+    --muted: 240 8% 18%;
+    --muted-foreground: 240 5% 65%;
+
+    /* Bright cyan accent */
+    --accent: 190 90% 55%;
+    --accent-foreground: 240 10% 8%;
+
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Gold for rewards */
+    --gold: 45 95% 55%;
+    --gold-foreground: 240 10% 8%;
+
+    /* XP bar gradient */
+    --xp-from: 270 80% 60%;
+    --xp-via: 280 90% 65%;
+    --xp-to: 190 90% 55%;
+
+    --border: 240 8% 20%;
+    --input: 240 8% 18%;
+    --ring: 270 80% 60%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 240 10% 10%;
+    --sidebar-foreground: 280 5% 90%;
+    --sidebar-primary: 270 80% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 8% 16%;
+    --sidebar-accent-foreground: 280 5% 98%;
+    --sidebar-border: 240 8% 20%;
+    --sidebar-ring: 270 80% 60%;
+  }
+
+  .dark {
+    /* Same as root - fully dark themed */
+    --background: 240 10% 8%;
+    --foreground: 280 5% 98%;
+    --card: 240 8% 12%;
+    --card-foreground: 280 5% 98%;
+    --popover: 240 8% 12%;
+    --popover-foreground: 280 5% 98%;
+    --primary: 270 80% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 50% 25%;
+    --secondary-foreground: 280 5% 98%;
+    --muted: 240 8% 18%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 190 90% 55%;
+    --accent-foreground: 240 10% 8%;
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --gold: 45 95% 55%;
+    --gold-foreground: 240 10% 8%;
+    --border: 240 8% 20%;
+    --input: 240 8% 18%;
+    --ring: 270 80% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

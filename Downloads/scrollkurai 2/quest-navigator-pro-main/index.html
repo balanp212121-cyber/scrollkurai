@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#9b87f5" />
+    
+    <!-- Preconnect to Supabase to reduce latency -->
+    <link rel="preconnect" href="https://eldzmgtlgphjgwprtwfa.supabase.co" crossorigin>
+    <link rel="dns-prefetch" href="https://eldzmgtlgphjgwprtwfa.supabase.co">
+    
+    <title>ScrollKurai - Transform Brain Rot into True Potential</title>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
+    <meta name="description" content="Gamified self-improvement web app with daily quests, XP streaks, and achievements. Turn procrastination into progress with ScrollKurai." />
+    <meta name="author" content="ScrollKurai" />
+    <meta name="keywords" content="self-improvement, gamification, daily quests, habit tracker, productivity, personal growth" />
+    
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ScrollKurai" />
+    
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="shortcut icon" href="/icon-192.png" />
+    
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta property="og:title" content="ScrollKurai - Transform Brain Rot into True Potential" />
+    <meta property="og:description" content="Gamified self-improvement through daily quests. Build streaks, earn XP, and unlock your true potential." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@lovable_dev" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

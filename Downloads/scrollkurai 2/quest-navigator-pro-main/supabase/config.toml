@@ -1,0 +1,89 @@
+project_id = "eldzmgtlgphjgwprtwfa"
+
+# ============================================
+# EDGE FUNCTION JWT VERIFICATION CONFIGURATION
+# ============================================
+# verify_jwt = true  → Requires valid Supabase JWT token
+# verify_jwt = false → Public or system-triggered (cron/webhook)
+#
+# INTENTIONALLY PUBLIC (No JWT Required):
+# - System cron jobs (process-league-week, check-subscription-renewals)
+# - Webhook receivers (send-payment-notification)
+# - Password reset (unauthenticated by design)
+# - Analytics tracking (accepts optional auth)
+# - Push notifications (server-triggered)
+# ============================================
+
+# --- USER-FACING FUNCTIONS (JWT REQUIRED) ---
+
+[functions.get-daily-quest]
+verify_jwt = true
+
+[functions.complete-quest]
+verify_jwt = true
+
+[functions.analyze-reflection]
+verify_jwt = true
+
+[functions.update-challenge-progress]
+verify_jwt = true
+
+[functions.accept-personalized-quest]
+verify_jwt = true
+
+[functions.process-referral-reward]
+verify_jwt = true
+
+[functions.store-push-token]
+verify_jwt = true
+
+[functions.generate-personalized-quests]
+verify_jwt = true
+
+[functions.track-league-participation]
+verify_jwt = true
+
+# AI Functions - PROTECTED (Premium + JWT required)
+[functions.generate-with-gemini]
+verify_jwt = true
+
+[functions.ai-coaching-chat]
+verify_jwt = true
+
+# Admin Functions - PROTECTED (Admin role + JWT required)
+[functions.manage-user-roles]
+verify_jwt = true
+
+[functions.admin-restore-streak]
+verify_jwt = true
+
+[functions.admin-get-user-streak]
+verify_jwt = true
+
+# --- SYSTEM FUNCTIONS (Intentionally Public) ---
+# These are triggered by cron jobs, webhooks, or server-side processes
+
+# Cron job: Weekly league processing
+[functions.process-league-week]
+verify_jwt = false
+
+# Cron job: Subscription renewal checks
+[functions.check-subscription-renewals]
+verify_jwt = false
+
+# Server-triggered: Push notifications to users
+[functions.send-smart-notification]
+verify_jwt = false
+
+# Webhook: Payment gateway callbacks
+[functions.send-payment-notification]
+verify_jwt = false
+
+# Unauthenticated by design: Password reset emails
+[functions.send-password-reset]
+verify_jwt = false
+
+# Analytics: Accepts both authenticated and anonymous events
+# NOTE: Function validates auth internally when present
+[functions.track-analytics]
+verify_jwt = false
