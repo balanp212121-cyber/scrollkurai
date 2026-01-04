@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, Area, AreaChart
 } from "recharts";
@@ -58,8 +58,8 @@ export const PaymentAnalytics = () => {
 
     // Approval rate
     const reviewedTransactions = completedTransactions.length + rejectedTransactions.length;
-    const approvalRate = reviewedTransactions > 0 
-      ? Math.round((completedTransactions.length / reviewedTransactions) * 100) 
+    const approvalRate = reviewedTransactions > 0
+      ? Math.round((completedTransactions.length / reviewedTransactions) * 100)
       : 0;
 
     // Daily volume for last 30 days
@@ -126,7 +126,7 @@ export const PaymentAnalytics = () => {
     for (let i = 7; i >= 0; i--) {
       const weekStart = subDays(new Date(), i * 7 + 6);
       const weekEnd = subDays(new Date(), i * 7);
-      
+
       const weekTransactions = transactions.filter(t => {
         const tDate = new Date(t.transaction_date);
         return tDate >= weekStart && tDate <= weekEnd && completedStatuses.includes(t.status);
@@ -140,24 +140,24 @@ export const PaymentAnalytics = () => {
     }
 
     // Average transaction value
-    const avgTransactionValue = completedTransactions.length > 0 
-      ? Math.round(totalRevenue / completedTransactions.length) 
+    const avgTransactionValue = completedTransactions.length > 0
+      ? Math.round(totalRevenue / completedTransactions.length)
       : 0;
 
     // Compare to previous period
     const midPoint = Math.floor(transactions.length / 2);
     const recentHalf = transactions.slice(midPoint);
     const olderHalf = transactions.slice(0, midPoint);
-    
+
     const recentRevenue = recentHalf
       .filter(t => completedStatuses.includes(t.status))
       .reduce((sum, t) => sum + (t.amount || 0), 0);
     const olderRevenue = olderHalf
       .filter(t => completedStatuses.includes(t.status))
       .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const revenueGrowth = olderRevenue > 0 
-      ? Math.round(((recentRevenue - olderRevenue) / olderRevenue) * 100) 
+
+    const revenueGrowth = olderRevenue > 0
+      ? Math.round(((recentRevenue - olderRevenue) / olderRevenue) * 100)
       : 0;
 
     return {
@@ -187,18 +187,18 @@ export const PaymentAnalytics = () => {
     const rejected = paymentProofs.filter(p => p.status === 'rejected').length;
     const pending = paymentProofs.filter(p => p.status === 'pending').length;
 
-    const approvalRate = (approved + rejected) > 0 
-      ? Math.round((approved / (approved + rejected)) * 100) 
+    const approvalRate = (approved + rejected) > 0
+      ? Math.round((approved / (approved + rejected)) * 100)
       : 0;
 
     // Average review time (for reviewed proofs)
     const reviewedProofs = paymentProofs.filter(p => p.reviewed_at);
     const avgReviewTime = reviewedProofs.length > 0
       ? reviewedProofs.reduce((sum, p) => {
-          const created = new Date(p.created_at).getTime();
-          const reviewed = new Date(p.reviewed_at!).getTime();
-          return sum + (reviewed - created);
-        }, 0) / reviewedProofs.length / (1000 * 60 * 60) // Convert to hours
+        const created = new Date(p.created_at).getTime();
+        const reviewed = new Date(p.reviewed_at!).getTime();
+        return sum + (reviewed - created);
+      }, 0) / reviewedProofs.length / (1000 * 60 * 60) // Convert to hours
       : 0;
 
     return {
@@ -242,18 +242,18 @@ export const PaymentAnalytics = () => {
     <div className="space-y-6">
       {/* Key Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Total Revenue</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-green-500">₹{analytics.totalRevenue.toLocaleString()}</div>
-            <div className="flex items-center gap-1 text-[10px] sm:text-xs mt-1">
+            <div className="text-lg sm:text-2xl font-bold text-green-500 truncate" title={`₹${analytics.totalRevenue.toLocaleString()}`}>₹{analytics.totalRevenue.toLocaleString()}</div>
+            <div className="flex items-center gap-1 text-[10px] sm:text-xs mt-1 truncate">
               {analytics.revenueGrowth >= 0 ? (
-                <TrendingUp className="h-3 w-3 text-green-500" />
+                <TrendingUp className="h-3 w-3 text-green-500 flex-shrink-0" />
               ) : (
-                <TrendingDown className="h-3 w-3 text-red-500" />
+                <TrendingDown className="h-3 w-3 text-red-500 flex-shrink-0" />
               )}
               <span className={analytics.revenueGrowth >= 0 ? "text-green-500" : "text-red-500"}>
                 {analytics.revenueGrowth >= 0 ? '+' : ''}{analytics.revenueGrowth}%
@@ -263,40 +263,40 @@ export const PaymentAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Approval Rate</CardTitle>
-            <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
+            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Approval Rate</CardTitle>
+            <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500 flex-shrink-0" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-blue-500">{analytics.approvalRate}%</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+            <div className="text-lg sm:text-2xl font-bold text-blue-500 truncate">{analytics.approvalRate}%</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
               {analytics.completedCount}/{analytics.completedCount + analytics.rejectedCount}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Avg Transaction</CardTitle>
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
+            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Avg Transaction</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500 flex-shrink-0" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-purple-500">₹{analytics.avgTransactionValue}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block">
+            <div className="text-lg sm:text-2xl font-bold text-purple-500 truncate">₹{analytics.avgTransactionValue}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block truncate">
               Per completed
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
+        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500" />
+            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Pending</CardTitle>
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500 flex-shrink-0" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-amber-500">₹{analytics.pendingRevenue.toLocaleString()}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+            <div className="text-lg sm:text-2xl font-bold text-amber-500 truncate">₹{analytics.pendingRevenue.toLocaleString()}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
               {analytics.pendingCount} awaiting
             </p>
           </CardContent>
@@ -356,39 +356,39 @@ export const PaymentAnalytics = () => {
               <AreaChart data={analytics.dailyVolume}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   tick={{ fontSize: 10 }}
                   tickLine={false}
                   interval="preserveStartEnd"
                   className="text-muted-foreground"
                 />
-                <YAxis 
+                <YAxis
                   yAxisId="left"
                   tick={{ fontSize: 10 }}
                   tickLine={false}
                   width={40}
                   className="text-muted-foreground"
                 />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
                     fontSize: '12px'
                   }}
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                 />
-                <Area 
+                <Area
                   yAxisId="left"
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--primary))" 
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
                   fill="url(#colorRevenue)"
                   name="Revenue (₹)"
                 />
@@ -423,9 +423,9 @@ export const PaymentAnalytics = () => {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                       fontSize: '12px'
@@ -465,10 +465,10 @@ export const PaymentAnalytics = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" tickFormatter={(value) => `₹${value}`} tick={{ fontSize: 10 }} />
                   <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10 }} />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                       fontSize: '12px'
@@ -507,9 +507,9 @@ export const PaymentAnalytics = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                       fontSize: '12px'
@@ -534,13 +534,13 @@ export const PaymentAnalytics = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="week" tick={{ fontSize: 10 }} />
                   <YAxis tickFormatter={(value) => `₹${value}`} tick={{ fontSize: 10 }} width={45} />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number, name: string) => [
                       name === 'revenue' ? `₹${value.toLocaleString()}` : value,
                       name === 'revenue' ? 'Revenue' : 'Transactions'
                     ]}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                       fontSize: '12px'
