@@ -241,15 +241,15 @@ export const PaymentAnalytics = () => {
   return (
     <div className="space-y-6">
       {/* Key Metrics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Total Revenue</CardTitle>
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 p-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium leading-tight">Total Revenue</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0 ml-1" />
           </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-green-500 truncate" title={`₹${analytics.totalRevenue.toLocaleString()}`}>₹{analytics.totalRevenue.toLocaleString()}</div>
-            <div className="flex items-center gap-1 text-[10px] sm:text-xs mt-1 truncate">
+          <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-base sm:text-2xl font-bold text-green-500 break-words">₹{analytics.totalRevenue.toLocaleString()}</div>
+            <div className="flex items-center gap-1 text-[10px] sm:text-xs mt-1 flex-wrap">
               {analytics.revenueGrowth >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-green-500 flex-shrink-0" />
               ) : (
@@ -264,39 +264,39 @@ export const PaymentAnalytics = () => {
         </Card>
 
         <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Approval Rate</CardTitle>
-            <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500 flex-shrink-0" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 p-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium leading-tight">Approval Rate</CardTitle>
+            <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500 flex-shrink-0 ml-1" />
           </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-blue-500 truncate">{analytics.approvalRate}%</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
+          <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-base sm:text-2xl font-bold text-blue-500 break-words">{analytics.approvalRate}%</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 text-nowrap">
               {analytics.completedCount}/{analytics.completedCount + analytics.rejectedCount}
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Avg Transaction</CardTitle>
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500 flex-shrink-0" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 p-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium leading-tight">Avg Transaction</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500 flex-shrink-0 ml-1" />
           </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-purple-500 truncate">₹{analytics.avgTransactionValue}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block truncate">
+          <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-base sm:text-2xl font-bold text-purple-500 break-words">₹{analytics.avgTransactionValue}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block">
               Per completed
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium truncate pr-1">Pending</CardTitle>
-            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500 flex-shrink-0" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 p-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium leading-tight">Pending</CardTitle>
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500 flex-shrink-0 ml-1" />
           </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-amber-500 truncate">₹{analytics.pendingRevenue.toLocaleString()}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
+          <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-base sm:text-2xl font-bold text-amber-500 break-words">₹{analytics.pendingRevenue.toLocaleString()}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 text-nowrap">
               {analytics.pendingCount} awaiting
             </p>
           </CardContent>
