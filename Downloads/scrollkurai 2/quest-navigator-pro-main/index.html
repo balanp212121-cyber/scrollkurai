@@ -1,54 +1,118 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#9b87f5" />
-    
-    <!-- Preconnect to Supabase to reduce latency -->
-    <link rel="preconnect" href="https://eldzmgtlgphjgwprtwfa.supabase.co" crossorigin>
-    <link rel="dns-prefetch" href="https://eldzmgtlgphjgwprtwfa.supabase.co">
-    
-    <title>ScrollKurai - Transform Brain Rot into True Potential</title>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          }, function(err) {
-            console.log('ServiceWorker registration failed: ', err);
-          });
-        });
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#9b87f5" />
+
+  <!-- Primary Meta Tags -->
+  <title>ScrollKurai - Transform Brain Rot into True Potential | Digital Wellness & Habit Tracker</title>
+  <meta name="title"
+    content="ScrollKurai - Transform Brain Rot into True Potential | Digital Wellness & Habit Tracker" />
+  <meta name="description"
+    content="India's #1 gamified digital wellness app. Beat phone addiction, reduce screen time, and build life-changing habits through daily quests, XP streaks, and AI coaching. Join 10,000+ students breaking free from brain rot." />
+  <meta name="keywords"
+    content="digital wellness, screen time tracker, phone addiction India, reduce screen time, habit tracker app, gamified productivity, brain rot cure, focus app, study habits, mindfulness app, streak app, daily quest app, self-improvement India, student productivity, dopamine detox, scrolling addiction, digital detox India, wellness app, mental health app, productivity gamification" />
+  <meta name="author" content="ScrollKurai" />
+  <meta name="robots" content="index, follow" />
+  <meta name="language" content="English" />
+  <meta name="revisit-after" content="7 days" />
+  <meta name="distribution" content="global" />
+  <meta name="rating" content="general" />
+
+  <!-- Geo Tags for India -->
+  <meta name="geo.region" content="IN" />
+  <meta name="geo.placename" content="India" />
+
+  <!-- Preconnect to improve performance -->
+  <link rel="preconnect" href="https://vfxvvovudyaofgdbkfua.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://vfxvvovudyaofgdbkfua.supabase.co">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- PWA Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ScrollKurai" />
+  <meta name="application-name" content="ScrollKurai" />
+  <meta name="msapplication-TileColor" content="#9b87f5" />
+  <meta name="msapplication-tap-highlight" content="no" />
+
+  <!-- Favicon and App Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="shortcut icon" href="/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://scrollkurai.vercel.app/" />
+  <meta property="og:title" content="ScrollKurai - Transform Brain Rot into True Potential" />
+  <meta property="og:description"
+    content="India's #1 gamified digital wellness app. Beat phone addiction with daily quests, XP streaks, and AI coaching. Join 10,000+ students!" />
+  <meta property="og:image" content="https://scrollkurai.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="en_IN" />
+  <meta property="og:site_name" content="ScrollKurai" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://scrollkurai.vercel.app/" />
+  <meta name="twitter:title" content="ScrollKurai - Transform Brain Rot into True Potential" />
+  <meta name="twitter:description"
+    content="India's #1 gamified digital wellness app. Beat phone addiction with daily quests, XP streaks, and AI coaching." />
+  <meta name="twitter:image" content="https://scrollkurai.vercel.app/og-image.png" />
+  <meta name="twitter:creator" content="@scrollkurai" />
+
+  <!-- Structured Data / JSON-LD -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "ScrollKurai",
+      "alternateName": "Scroll Kurai",
+      "description": "Gamified digital wellness app to reduce screen time and build better habits through daily quests and AI coaching",
+      "url": "https://scrollkurai.vercel.app",
+      "applicationCategory": "HealthApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "500"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "ScrollKurai"
       }
+    }
     </script>
-    <meta name="description" content="Gamified self-improvement web app with daily quests, XP streaks, and achievements. Turn procrastination into progress with ScrollKurai." />
-    <meta name="author" content="ScrollKurai" />
-    <meta name="keywords" content="self-improvement, gamification, daily quests, habit tracker, productivity, personal growth" />
-    
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="ScrollKurai" />
-    
-    <!-- Favicon and App Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/icon-192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="shortcut icon" href="/icon-192.png" />
-    
-    <link rel="manifest" href="/manifest.json" />
 
-    <meta property="og:title" content="ScrollKurai - Transform Brain Rot into True Potential" />
-    <meta property="og:description" content="Gamified self-improvement through daily quests. Build streaks, earn XP, and unlock your true potential." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/service-worker.js').then(function (registration) {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }, function (err) {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      });
+    }
+  </script>
+</head>
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
 </html>
