@@ -1,0 +1,59 @@
+
+=== PHASE 1: ENVIRONMENT & BOOT ===
+[2026-01-01T17:38:02.231Z] [INFO] Supabase URL: https://vfxvvovudyaofgdbkfua.supabase.co
+[2026-01-01T17:38:02.395Z] [PASS] Frontend running on localhost:8080
+[2026-01-01T17:38:02.872Z] [PASS] Supabase connection successful
+
+=== PHASE 2: DATABASE SCHEMA & INTEGRITY ===
+[2026-01-01T17:38:03.035Z] [PASS] Table profiles exists
+[2026-01-01T17:38:03.183Z] [PASS] Table quests exists
+[2026-01-01T17:38:03.336Z] [PASS] Table user_quest_log exists
+[2026-01-01T17:38:03.506Z] [PASS] Table ai_daily_usage exists
+[2026-01-01T17:38:03.665Z] [PASS] Table power_ups exists
+[2026-01-01T17:38:03.806Z] [PASS] Table user_power_ups exists
+[2026-01-01T17:38:04.032Z] [PASS] Table premium_lessons exists
+[2026-01-01T17:38:04.195Z] [PASS] Table lesson_progress exists
+[2026-01-01T17:38:04.339Z] [PASS] Table counselling_requests exists
+[2026-01-01T17:38:04.462Z] [PASS] Table admin_audit_logs exists
+[2026-01-01T17:38:04.606Z] [PASS] Table avatar_catalog exists
+[2026-01-01T17:38:04.752Z] [PASS] Table user_avatar_collection exists
+[2026-01-01T17:38:04.903Z] [PASS] Table avatar_drop_cooldowns exists
+[2026-01-01T17:38:05.050Z] [PASS] Table user_avatars exists
+[2026-01-01T17:38:05.182Z] [PASS] Table payment_transactions exists
+[2026-01-01T17:38:05.187Z] [INFO] Checking RLS on admin_audit_logs...
+[2026-01-01T17:38:05.348Z] [PASS] RLS blocks anon from admin logs
+
+=== PHASE 3: AUTHENTICATION & RBAC ===
+[2026-01-01T17:38:06.147Z] [PASS] Test users created
+[2026-01-01T17:38:06.432Z] [PASS] JWT login verified
+[2026-01-01T17:38:06.746Z] [PASS] RBAC: Free user blocked from admin logs
+
+=== PHASE 4: CORE FEATURES ===
+[2026-01-01T17:38:06.751Z] [INFO] 4A: Daily Quest System
+[2026-01-01T17:38:08.030Z] [PASS] Quest created: log_id=f21b72cf...
+[2026-01-01T17:38:08.747Z] [PASS] Idempotency verified
+[2026-01-01T17:38:08.749Z] [INFO] 4B: AI Usage Limits
+[2026-01-01T17:38:11.792Z] [INFO] AI attempts: [502, 502, 429]
+[2026-01-01T17:38:11.902Z] [PASS] AI limit enforced (usage_count=3)
+[2026-01-01T17:38:11.903Z] [INFO] 4C: Leaderboard Cache
+[2026-01-01T17:38:12.022Z] [PASS] leaderboard_cache table exists
+
+=== PHASE 5: AVATARS, POWER-UPS & DROPS ===
+[2026-01-01T17:38:12.113Z] [PASS] Avatar catalog: 8 avatars
+[2026-01-01T17:38:12.214Z] [PASS] Power-ups: 4 types
+[2026-01-01T17:38:13.136Z] [PASS] Recommendations endpoint responsive
+
+=== PHASE 6: FILE UPLOAD SECURITY ===
+[2026-01-01T17:38:15.158Z] [PASS] Oversized file rejected
+[2026-01-01T17:38:15.382Z] [PASS] Malicious file rejected
+
+=== PHASE 7: ADMIN & AUDIT LOGS ===
+[2026-01-01T17:38:15.463Z] [PASS] Admin audit logs: 5 entries
+
+=== PHASE 8: FAILURE & EDGE CASES ===
+[2026-01-01T17:38:15.907Z] [PASS] Invalid JWT rejected with 401
+[2026-01-01T17:38:16.149Z] [PASS] Missing JWT rejected with 401
+
+=== PHASE 9: SCALE READINESS ===
+[2026-01-01T17:38:16.252Z] [PASS] profiles table accessible
+[2026-01-01T17:38:16.373Z] [PASS] Leaderboard caching active

@@ -1,0 +1,18 @@
+[2026-01-01T07:45:13.517Z] [INFO] --- STARTING DAILY QUEST FIX VERIFICATION ---
+[2026-01-01T07:45:13.521Z] [FAIL] Missing Credentials
+[2026-01-01T07:45:53.897Z] [INFO] --- STARTING DAILY QUEST FIX VERIFICATION ---
+[2026-01-01T07:45:53.900Z] [FAIL] Missing Credentials - Check .env parsing
+[2026-01-01T07:46:31.505Z] [INFO] --- STARTING DAILY QUEST FIX VERIFICATION ---
+[2026-01-01T07:46:31.510Z] [FAIL] Missing Credentials - Simple Parser Failed
+[2026-01-01T07:47:17.510Z] [INFO] Attempting to read .env from: c:\Users\Ragu\Downloads\scrollkurai 2\quest-navigator-pro-main\.env
+[2026-01-01T07:47:17.517Z] [INFO] Parsed URL: FOUND
+[2026-01-01T07:47:17.520Z] [INFO] Parsed Anon Key: FOUND
+[2026-01-01T07:47:17.522Z] [INFO] Parsed Role Key: MISSING
+[2026-01-01T07:47:17.524Z] [INFO] --- STARTING DAILY QUEST FIX VERIFICATION ---
+[2026-01-01T07:47:17.526Z] [FAIL] Missing Credentials - Aborting
+[2026-01-01T07:47:56.067Z] [INFO] Reading .env from: c:\Users\Ragu\Downloads\scrollkurai 2\quest-navigator-pro-main\.env
+[2026-01-01T07:47:56.071Z] [INFO] Found Env Key: VITE_SUPABASE_URL
+[2026-01-01T07:47:56.073Z] [INFO] Found Env Key: VITE_SUPABASE_PUBLISHABLE_KEY
+[2026-01-01T07:47:56.076Z] [INFO] Found Env Key: GEMINI_API_KEY
+[2026-01-01T07:47:56.080Z] [INFO] --- STARTING DAILY QUEST FIX VERIFICATION ---
+[2026-01-01T07:47:56.082Z] [FAIL] Missing Credentials - Aborting

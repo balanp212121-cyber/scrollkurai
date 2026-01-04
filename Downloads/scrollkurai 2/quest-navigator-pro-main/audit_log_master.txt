@@ -1,0 +1,27 @@
+[2026-01-01T09:59:37.369Z] [INFO] --- PHASE 1: BOOT & ENVIRONMENT ---
+[2026-01-01T09:59:37.376Z] [INFO] Supabase URL: https://vfxvvovudyaofgdbkfua.supabase.co
+[2026-01-01T09:59:37.418Z] [WARN] Frontend Not Running (127.0.0.1:5173)
+[2026-01-01T09:59:37.630Z] [PASS] Supabase Connection Successful
+[2026-01-01T09:59:37.632Z] [INFO] --- PHASE 2: DATABASE & SCHEMA AUDIT ---
+[2026-01-01T09:59:37.805Z] [PASS] Verified Table: quests (Rows: 291)
+[2026-01-01T09:59:37.932Z] [PASS] Verified Table: habits (Rows: 13)
+[2026-01-01T09:59:38.084Z] [PASS] Verified Table: admin_audit_logs (Rows: 15)
+[2026-01-01T09:59:38.231Z] [WARN] Verified Table: leaderboard_cache (Rows: 0)
+[2026-01-01T09:59:38.371Z] [PASS] Verified Table: counselling_requests (Rows: 12)
+[2026-01-01T09:59:38.514Z] [PASS] Verified Table: premium_lessons (Rows: 12)
+[2026-01-01T09:59:38.659Z] [PASS] Verified Table: ai_daily_usage (Rows: 1)
+[2026-01-01T09:59:39.325Z] [PASS] Verified Table: user_quest_log (Rows: 3)
+[2026-01-01T09:59:39.326Z] [INFO] Verifying RLS on admin_audit_logs...
+[2026-01-01T09:59:39.817Z] [PASS] RLS SUCCESS: Anon user cannot see admin logs
+[2026-01-01T09:59:39.819Z] [INFO] --- PHASE 3: AUTH & RBAC ---
+[2026-01-01T09:59:40.024Z] [PASS] Test Users Created
+[2026-01-01T09:59:40.178Z] [PASS] JWT Login Verified
+[2026-01-01T09:59:40.393Z] [PASS] RBAC PASS: User blocked from admin logs
+[2026-01-01T09:59:40.395Z] [INFO] --- PHASE 4B: AI USAGE LIMITS ---
+[2026-01-01T09:59:41.043Z] [INFO] Reset AI usage for 2026-01-01
+[2026-01-01T09:59:41.538Z] [INFO] Attempt 1 Status: 502
+[2026-01-01T09:59:42.330Z] [INFO] Attempt 2 Status: 502
+[2026-01-01T09:59:42.669Z] [INFO] Attempt 3 Status: 429
+[2026-01-01T09:59:42.671Z] [FAIL] AI Rate Limit FAILED. Expected [200, 200, 429], got [502, 502, 429]
+[2026-01-01T09:59:42.674Z] [INFO] --- PHASE 5: PAYMENT PROOF SECURITY ---
+[2026-01-01T09:59:44.367Z] [PASS] Upload Security Verified

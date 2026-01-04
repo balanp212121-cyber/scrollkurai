@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyBjYwISHcXVcMoVzIzbtOJgFjDqykmJe8s</string>
+	<key>GCM_SENDER_ID</key>
+	<string>489371354623</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>app.lovable.83c4d2fb460848c1a5d5216e5b0ac4e3</string>
+	<key>PROJECT_ID</key>
+	<string>scrollkurai</string>
+	<key>STORAGE_BUCKET</key>
+	<string>scrollkurai.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:489371354623:ios:68d7b17d76e78a7f3213ca</string>
+</dict>
+</plist>

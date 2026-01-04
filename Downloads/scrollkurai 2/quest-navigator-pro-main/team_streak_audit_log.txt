@@ -1,0 +1,23 @@
+
+=== PART 1: TEAM CREATION VERIFICATION ===
+[2026-01-01T13:32:56.496Z] [INFO] 1A: Table verification
+[2026-01-01T13:32:57.210Z] [PASS] teams and team_members tables exist
+[2026-01-01T13:32:57.219Z] [INFO] 1B: Team creation flow
+[2026-01-01T13:32:57.710Z] [PASS] Team created: 8a07b8b8...
+[2026-01-01T13:32:57.802Z] [PASS] Creator has admin role
+[2026-01-01T13:32:57.803Z] [INFO] 1C: Duplicate join prevention
+[2026-01-01T13:32:58.118Z] [PASS] Duplicate join correctly blocked (unique constraint)
+[2026-01-01T13:32:58.263Z] [INFO] 1D: RLS verification
+[2026-01-01T13:32:58.707Z] [PASS] RLS blocks outsider from team data
+
+=== PART 2: ADMIN STREAK OVERRIDE VERIFICATION ===
+[2026-01-01T13:32:58.906Z] [INFO] 2A: Authorization checks
+[2026-01-01T13:33:02.083Z] [PASS] Anonymous request correctly rejected (401)
+[2026-01-01T13:33:03.193Z] [PASS] Normal user correctly rejected (403)
+[2026-01-01T13:33:03.197Z] [INFO] 2B: Admin streak override
+[2026-01-01T13:33:04.438Z] [FAIL] Admin streak override failed: 403 - {"error":"Admin access required"}
+[2026-01-01T13:33:04.440Z] [INFO] 2D: Idempotency test
+
+=== PART 3: SECURITY & RLS CHECKS ===
+[2026-01-01T13:33:06.856Z] [PASS] Audit logs hidden from anon
+[2026-01-01T13:33:07.148Z] [PASS] Audit logs hidden from normal users

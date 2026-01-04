@@ -1,0 +1,15 @@
+
+=== PART 1: DUO CREATION ===
+[2026-01-01T13:32:01.229Z] [PASS] team_type column exists
+[2026-01-01T13:32:01.235Z] [INFO] 1A: Create Duo via RPC
+[2026-01-01T13:32:01.815Z] [PASS] Duo created: d151ae23...
+[2026-01-01T13:32:01.817Z] [INFO] 1B: Test max 2 members
+[2026-01-01T13:32:02.109Z] [PASS] Partner 1 added successfully
+[2026-01-01T13:32:02.196Z] [PASS] Third member correctly blocked
+[2026-01-01T13:32:02.200Z] [INFO] 1C: Test one Duo per user
+
+=== PART 2: LEAGUE LEADERBOARD (TOP 10) ===
+[2026-01-01T13:32:02.537Z] [INFO] Leaderboard returned 20 entries
+[2026-01-01T13:32:02.540Z] [PASS] Leaderboard uses xp_earned (league XP)
+[2026-01-01T13:32:02.548Z] [INFO] 2B: Global Leaderboard Check
+[2026-01-01T13:32:02.642Z] [PASS] Global leaderboard returns 10 entries

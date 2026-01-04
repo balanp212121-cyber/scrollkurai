@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "489371354623",
+    "project_id": "scrollkurai",
+    "storage_bucket": "scrollkurai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489371354623:android:f9dd57fd2cd5e0703213ca",
+        "android_client_info": {
+          "package_name": "com.lovable.scrollkurai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgf8LS-gDog_WFTP3Jk2nsGJ1_EHw5m4w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

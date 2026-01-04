@@ -1,0 +1,21 @@
+--- STARTING AI LIMIT VERIFICATION ---
+Test User ID: 6678c1d2-9ee7-428b-a2f9-69b68c9d5ef0
+Resetting usage for date: 2026-01-01
+Usage reset successful.
+
+Attempt 1...
+Status: 502
+Response Body: {"error":"AI service error. Please try again."}
+❌ FAILED: Expected 200, got 502
+
+Attempt 2...
+Status: 502
+Response Body: {"error":"AI service error. Please try again."}
+❌ FAILED: Expected 200, got 502
+
+Attempt 3...
+Status: 429
+Response Body: {"error":"Daily AI limit reached","message":"You have reached your daily limit of 2 AI requests. Please try again tomorrow!"}
+✅ BLOCKED (Expected)
+
+--- VERIFICATION COMPLETE ---
