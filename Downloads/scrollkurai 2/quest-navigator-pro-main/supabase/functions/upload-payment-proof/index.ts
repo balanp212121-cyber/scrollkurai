@@ -6,8 +6,8 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// 1MB Limit
-const MAX_FILE_SIZE = 1048576;
+// 50KB Limit
+const MAX_FILE_SIZE = 51200;
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -35,7 +35,7 @@ serve(async (req) => {
 
         // 1. Size Check
         if (file.size > MAX_FILE_SIZE) {
-            return new Response(JSON.stringify({ error: 'File too large. Max 1MB allowed.' }), {
+            return new Response(JSON.stringify({ error: 'File too large. Max 50KB allowed.' }), {
                 status: 400,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });

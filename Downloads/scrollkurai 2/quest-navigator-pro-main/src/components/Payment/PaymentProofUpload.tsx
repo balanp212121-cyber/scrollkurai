@@ -20,7 +20,7 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
 };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1 MB
+const MAX_FILE_SIZE = 50 * 1024; // 50 KB
 const MAX_DIMENSION = 2048; // Max width/height after compression
 
 async function validateFileSignature(file: File): Promise<boolean> {
@@ -98,7 +98,7 @@ export function PaymentProofUpload({ transactionId, onUploadComplete }: PaymentP
 
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      setValidationError(`File too large. Maximum size is 1 MB (yours: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      setValidationError(`File too large. Maximum size is 50 KB (yours: ${(file.size / 1024).toFixed(1)} KB)`);
       return;
     }
 
@@ -242,7 +242,7 @@ export function PaymentProofUpload({ transactionId, onUploadComplete }: PaymentP
 
       <div className="space-y-3">
         <Label htmlFor="payment-proof" className="text-sm font-medium">
-          Select Image (Max 1 MB)
+          Select Image (Max 50 KB)
         </Label>
         <Input
           ref={fileInputRef}
@@ -308,7 +308,7 @@ export function PaymentProofUpload({ transactionId, onUploadComplete }: PaymentP
       <Card className="p-3 bg-muted/30 border-border/50">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <ImageIcon className="w-4 h-4" />
-          <span>Only images accepted: JPEG, PNG, WebP (max 1 MB)</span>
+          <span>Only images accepted: JPEG, PNG, WebP (max 50 KB)</span>
         </div>
       </Card>
     </Card>

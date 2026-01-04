@@ -1,138 +1,104 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Video, Clock, CheckCircle, Play, X, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Video, GraduationCap, Briefcase, Clock, CheckCircle, Send, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PremiumRouteGuard } from "@/components/Premium/PremiumRouteGuard";
 
-interface Lesson {
-  id: string;
-  title: string;
-  description: string;
-  duration_minutes: number;
-  category: string;
-  video_url: string | null;
-  thumbnail_url: string | null;
-  progress?: number;
-  completed?: boolean;
-  last_position_seconds?: number;
-}
+type UserStatus = "school" | "college" | "unemployed" | "employed";
+
+const learningTopics = [
+  { id: "productivity", label: "Productivity & Time Management" },
+  { id: "mindfulness", label: "Mindfulness & Mental Wellness" },
+  { id: "digital_detox", label: "Digital Detox & Focus" },
+  { id: "study_habits", label: "Study Habits & Learning" },
+  { id: "career", label: "Career Development" },
+  { id: "communication", label: "Communication Skills" },
+  { id: "stress", label: "Stress Management" },
+  { id: "sleep", label: "Sleep & Rest Optimization" },
+];
 
 export default function CoursesPage() {
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [videoDialogOpen, setVideoDialogOpen] = useState(false);
+  const [userStatus, setUserStatus] = useState<UserStatus | "">("");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [additionalInfo, setAdditionalInfo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    fetchLessons();
-  }, []);
-
-  const fetchLessons = async () => {
-    try {
-      const { data: lessonsData } = await supabase
-        .from('premium_lessons')
-        .select('*')
-        .eq('is_published', true)
-        .order('order_index');
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !lessonsData) {
-        setLessons([]);
-        return;
-      }
-
-      const { data: progressData } = await supabase
-        .from('lesson_progress')
-        .select('*')
-        .eq('user_id', user.id);
-
-      const lessonsWithProgress = lessonsData.map(lesson => {
-        const progress = progressData?.find(p => p.lesson_id === lesson.id);
-        return {
-          ...lesson,
-          progress: progress?.progress_percent || 0,
-          completed: progress?.completed || false,
-          last_position_seconds: progress?.last_position_seconds || 0
-        };
-      });
-
-      setLessons(lessonsWithProgress);
-    } catch (error) {
-      console.error('Error fetching lessons:', error);
-      toast.error("Failed to load courses");
-    } finally {
-      setLoading(false);
-    }
+  const handleTopicToggle = (topicId: string) => {
+    setSelectedTopics(prev =>
+      prev.includes(topicId)
+        ? prev.filter(t => t !== topicId)
+        : [...prev, topicId]
+    );
   };
 
-  const startLesson = (lesson: Lesson) => {
-    if (!lesson.video_url) {
-      toast.info("Video coming soon!", {
-        description: "This lesson's video is being prepared"
-      });
+  const handleSubmit = async () => {
+    if (!userStatus) {
+      toast.error("Please select your current status");
       return;
     }
-    setSelectedLesson(lesson);
-    setVideoDialogOpen(true);
-  };
+    if (selectedTopics.length === 0) {
+      toast.error("Please select at least one topic you want to learn");
+      return;
+    }
 
-  const updateProgress = async (lessonId: string, progressPercent: number, positionSeconds: number) => {
+    setSubmitting(true);
+
     try {
-      // Use the RPC function for atomic update
-      await supabase.rpc('update_lesson_progress', {
-        p_lesson_id: lessonId,
-        p_progress_percent: Math.round(progressPercent),
-        p_position_seconds: Math.round(positionSeconds)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Save the course request
+      const { error } = await supabase.from("course_requests").insert({
+        user_id: user.id,
+        user_status: userStatus,
+        topics: selectedTopics,
+        additional_info: additionalInfo || null,
+        status: "pending"
       });
 
-      // Update local state
-      setLessons(prev => prev.map(l =>
-        l.id === lessonId
-          ? {
-            ...l,
-            progress: Math.max(l.progress || 0, progressPercent),
-            completed: progressPercent >= 90,
-            last_position_seconds: positionSeconds
-          }
-          : l
-      ));
-    } catch (error) {
-      console.error('Error updating progress:', error);
+      if (error) throw error;
+
+      setSubmitted(true);
+      toast.success("Request Submitted! 🎉", {
+        description: "We'll send your personalized course details within 48 hours",
+        duration: 5000
+      });
+    } catch (error: any) {
+      console.error("Error submitting course request:", error);
+      toast.error("Failed to submit request", {
+        description: error.message || "Please try again"
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleVideoProgress = (lesson: Lesson, currentTime: number, duration: number) => {
-    if (duration > 0) {
-      const progress = (currentTime / duration) * 100;
-      updateProgress(lesson.id, progress, currentTime);
-    }
-  };
-
-  const handleVideoEnded = (lesson: Lesson) => {
-    updateProgress(lesson.id, 100, 0);
-    toast.success("Lesson completed! 🎉", {
-      description: `You've finished "${lesson.title}"`
-    });
-  };
-
-  const completedCount = lessons.filter(l => l.completed).length;
-  const overallProgress = lessons.length > 0 ? (completedCount / lessons.length) * 100 : 0;
-
-  if (loading) {
+  if (submitted) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <PremiumRouteGuard>
+        <div className="pb-20 space-y-6">
+          <Card className="p-8 text-center bg-gradient-to-br from-primary/20 to-accent/20 border-primary/30">
+            <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Request Submitted!</h2>
+            <p className="text-muted-foreground mb-4">
+              Thank you for sharing your preferences. Our team will curate personalized
+              course recommendations based on your profile.
+            </p>
+            <Badge className="bg-accent/20 text-accent border-accent/30 text-lg px-4 py-2">
+              <Clock className="w-4 h-4 mr-2" />
+              Response within 48 hours
+            </Badge>
+          </Card>
+        </div>
+      </PremiumRouteGuard>
     );
   }
 
@@ -145,146 +111,125 @@ export default function CoursesPage() {
           <div>
             <h1 className="text-3xl font-bold">Video Courses</h1>
             <p className="text-sm text-muted-foreground">
-              Learn mindfulness and productivity
+              Get personalized learning recommendations
             </p>
           </div>
         </div>
 
-        {/* Progress Overview */}
-        <Card className="p-6 bg-gradient-to-r from-primary/20 to-accent/20 border-primary/30">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Overall Progress</span>
-              <span className="font-medium">
-                {completedCount} / {lessons.length} completed
-              </span>
+        {/* Info Card */}
+        <Card className="p-6 bg-gradient-to-r from-primary/10 to-accent/10 border-primary/30">
+          <div className="flex items-start gap-4">
+            <GraduationCap className="w-10 h-10 text-primary flex-shrink-0" />
+            <div>
+              <h3 className="font-bold text-lg mb-1">Personalized Course Curation</h3>
+              <p className="text-sm text-muted-foreground">
+                Tell us about yourself and what you want to learn. Our team will review
+                your preferences and send curated video course recommendations tailored
+                to your needs <strong>within 48 hours</strong>.
+              </p>
             </div>
-            <Progress value={overallProgress} />
           </div>
         </Card>
 
-        {/* Lessons List */}
-        <div className="grid gap-4">
-          {lessons.map((lesson) => (
-            <Card key={lesson.id} className="p-6 hover:border-primary/50 transition-colors">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex gap-4 flex-1">
-                  {/* Thumbnail or Icon */}
-                  <div className="relative w-24 h-16 bg-muted rounded-lg overflow-hidden flex-shrink-0">
-                    {lesson.thumbnail_url ? (
-                      <img
-                        src={lesson.thumbnail_url}
-                        alt={lesson.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Video className="w-8 h-8 text-muted-foreground" />
-                      </div>
-                    )}
-                    {lesson.video_url && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <Play className="w-6 h-6 text-white" />
-                      </div>
-                    )}
-                    {lesson.completed && (
-                      <div className="absolute top-1 right-1">
-                        <CheckCircle className="w-4 h-4 text-green-500 bg-white rounded-full" />
-                      </div>
-                    )}
-                  </div>
+        {/* Form */}
+        <Card className="p-6 space-y-6">
+          {/* User Status */}
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-accent" />
+              What's your current status?
+            </Label>
+            <RadioGroup
+              value={userStatus}
+              onValueChange={(value) => setUserStatus(value as UserStatus)}
+              className="grid grid-cols-2 gap-3"
+            >
+              <div className="flex items-center space-x-2 p-4 border rounded-lg hover:border-primary/50 cursor-pointer">
+                <RadioGroupItem value="school" id="school" />
+                <Label htmlFor="school" className="cursor-pointer">🎒 School Student</Label>
+              </div>
+              <div className="flex items-center space-x-2 p-4 border rounded-lg hover:border-primary/50 cursor-pointer">
+                <RadioGroupItem value="college" id="college" />
+                <Label htmlFor="college" className="cursor-pointer">🎓 College Student</Label>
+              </div>
+              <div className="flex items-center space-x-2 p-4 border rounded-lg hover:border-primary/50 cursor-pointer">
+                <RadioGroupItem value="unemployed" id="unemployed" />
+                <Label htmlFor="unemployed" className="cursor-pointer">🔍 Job Seeker</Label>
+              </div>
+              <div className="flex items-center space-x-2 p-4 border rounded-lg hover:border-primary/50 cursor-pointer">
+                <RadioGroupItem value="employed" id="employed" />
+                <Label htmlFor="employed" className="cursor-pointer">💼 Employed</Label>
+              </div>
+            </RadioGroup>
+          </div>
 
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold">{lesson.title}</h3>
-                      <Badge className="bg-accent/20 text-accent border-accent/30">
-                        {lesson.category}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {lesson.description}
-                    </p>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {lesson.duration_minutes} min
-                      </span>
-                      {lesson.progress > 0 && !lesson.completed && (
-                        <span className="text-primary">
-                          {Math.round(lesson.progress)}% watched
-                        </span>
-                      )}
-                    </div>
-                    {lesson.progress > 0 && !lesson.completed && (
-                      <Progress value={lesson.progress} className="h-1" />
-                    )}
-                  </div>
+          {/* Learning Topics */}
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              What do you want to learn? (Select all that apply)
+            </Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {learningTopics.map((topic) => (
+                <div
+                  key={topic.id}
+                  className={`flex items-center space-x-3 p-4 border rounded-lg cursor-pointer transition-all ${selectedTopics.includes(topic.id)
+                      ? "border-primary bg-primary/10"
+                      : "hover:border-primary/50"
+                    }`}
+                  onClick={() => handleTopicToggle(topic.id)}
+                >
+                  <Checkbox
+                    id={topic.id}
+                    checked={selectedTopics.includes(topic.id)}
+                    onCheckedChange={() => handleTopicToggle(topic.id)}
+                  />
+                  <Label htmlFor={topic.id} className="cursor-pointer flex-1">
+                    {topic.label}
+                  </Label>
                 </div>
-
-                <Button
-                  onClick={() => startLesson(lesson)}
-                  variant={lesson.completed ? "outline" : "default"}
-                  disabled={!lesson.video_url}
-                >
-                  {!lesson.video_url ? "Coming Soon" :
-                    lesson.completed ? "Rewatch" :
-                      lesson.progress > 0 ? "Continue" : "Start"}
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {lessons.length === 0 && (
-          <Card className="p-8 text-center">
-            <Video className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              No courses available yet. Check back soon!
-            </p>
-          </Card>
-        )}
-
-        {/* Video Player Dialog */}
-        <Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>
-          <DialogContent className="max-w-4xl p-0">
-            <DialogHeader className="p-4 pb-0">
-              <div className="flex items-center justify-between">
-                <DialogTitle>{selectedLesson?.title}</DialogTitle>
-              </div>
-            </DialogHeader>
-
-            {selectedLesson?.video_url && (
-              <div className="aspect-video bg-black">
-                <video
-                  src={selectedLesson.video_url}
-                  controls
-                  autoPlay
-                  className="w-full h-full"
-                  onTimeUpdate={(e) => {
-                    const video = e.currentTarget;
-                    handleVideoProgress(selectedLesson, video.currentTime, video.duration);
-                  }}
-                  onEnded={() => handleVideoEnded(selectedLesson)}
-                  // Resume from last position
-                  onLoadedMetadata={(e) => {
-                    const video = e.currentTarget;
-                    if (selectedLesson.last_position_seconds && selectedLesson.last_position_seconds > 0) {
-                      video.currentTime = selectedLesson.last_position_seconds;
-                    }
-                  }}
-                >
-                  Your browser does not support video playback.
-                </video>
-              </div>
-            )}
-
-            <div className="p-4 pt-2">
-              <p className="text-sm text-muted-foreground">
-                {selectedLesson?.description}
-              </p>
+              ))}
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          {/* Additional Info */}
+          <div className="space-y-3">
+            <Label className="text-lg font-semibold">
+              Anything else you'd like us to know? (Optional)
+            </Label>
+            <Textarea
+              placeholder="E.g., I'm preparing for exams and need help staying focused..."
+              value={additionalInfo}
+              onChange={(e) => setAdditionalInfo(e.target.value)}
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || !userStatus || selectedTopics.length === 0}
+            className="w-full"
+            size="lg"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Submit Request
+              </>
+            )}
+          </Button>
+
+          <p className="text-xs text-muted-foreground text-center">
+            📧 You'll receive personalized course recommendations via email and in-app notification within 48 hours.
+          </p>
+        </Card>
       </div>
     </PremiumRouteGuard>
   );

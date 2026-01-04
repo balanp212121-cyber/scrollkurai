@@ -14,7 +14,7 @@ export default function PremiumPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("monthly");
   const navigate = useNavigate();
-  
+
   const handlePaymentComplete = () => {
     toast.success("Welcome to Premium!", {
       description: "You now have access to all premium features. Try the AI Chatbot!",
@@ -30,7 +30,7 @@ export default function PremiumPage() {
     setSelectedPlan(plan);
     setPaymentDialogOpen(true);
   };
-  
+
   const features = [
     "Ad-free experience",
     "2× Streak Freezes per week",
@@ -86,17 +86,16 @@ export default function PremiumPage() {
         <div className="p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold mb-4">Premium Membership</h2>
-            
+
             {/* Plan Selection */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               {/* Monthly Plan */}
               <button
                 onClick={() => setSelectedPlan("monthly")}
-                className={`p-4 rounded-xl border-2 transition-all text-left ${
-                  selectedPlan === "monthly"
+                className={`p-4 rounded-xl border-2 transition-all text-left ${selectedPlan === "monthly"
                     ? "border-gold bg-gold/10"
                     : "border-border hover:border-gold/50"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Monthly</span>
@@ -114,11 +113,10 @@ export default function PremiumPage() {
               {/* Yearly Plan */}
               <button
                 onClick={() => setSelectedPlan("yearly")}
-                className={`p-4 rounded-xl border-2 transition-all text-left relative ${
-                  selectedPlan === "yearly"
+                className={`p-4 rounded-xl border-2 transition-all text-left relative ${selectedPlan === "yearly"
                     ? "border-gold bg-gold/10"
                     : "border-border hover:border-gold/50"
-                }`}
+                  }`}
               >
                 <div className="absolute -top-2 -right-2">
                   <Badge className="bg-accent text-accent-foreground text-xs">
@@ -159,9 +157,9 @@ export default function PremiumPage() {
             </div>
           </div>
 
-          <Button 
+          <Button
             onClick={() => handleUpgrade(selectedPlan)}
-            className="w-full bg-gradient-to-r from-gold to-accent hover:from-gold/90 hover:to-accent/90 text-background font-bold" 
+            className="w-full bg-gradient-to-r from-gold to-accent hover:from-gold/90 hover:to-accent/90 text-background font-bold"
             size="lg"
           >
             <Crown className="w-4 h-4 mr-2" />
@@ -188,26 +186,26 @@ export default function PremiumPage() {
       {/* Premium Features */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold">Premium Features</h2>
-        
+
         <PremiumFeatureCard
           icon={<Brain className="w-6 h-6 text-primary" />}
           title="AI Coaching Chatbot"
           description="Get personalized guidance and tips to reduce scrolling habits"
           link="/premium/chatbot"
         />
-        
+
         <PremiumFeatureCard
           icon={<Video className="w-6 h-6 text-accent" />}
           title="Video Courses"
           description="5-10 minute lessons on mindfulness and productivity"
           link="/premium/courses"
         />
-        
+
         <PremiumFeatureCard
           icon={<MessageSquare className="w-6 h-6 text-gold" />}
           title="Monthly Check-ins"
           description="1-on-1 wellness sessions to track your progress"
-          link="/premium/checkins"
+          link="/premium/counselling"
         />
       </div>
 
