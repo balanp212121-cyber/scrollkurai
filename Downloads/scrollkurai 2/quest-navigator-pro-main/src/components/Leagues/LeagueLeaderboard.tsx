@@ -263,9 +263,22 @@ export const LeagueLeaderboard = () => {
               </div>
             )}
 
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-              <p>📈 Top 10 users are promoted weekly • 📉 Bottom 5 users are demoted weekly</p>
-              <p className="mt-1">🏆 Top 10 receive exclusive league badges at week end</p>
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+              <p className="text-xs font-medium text-muted-foreground mb-2">League Rules</p>
+              <div className="grid gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-500">📈</span>
+                  <span className="text-muted-foreground">Top 10 users are <span className="text-green-500 font-medium">promoted</span> weekly</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-500">📉</span>
+                  <span className="text-muted-foreground">Bottom 5 users are <span className="text-red-500 font-medium">demoted</span> weekly</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-500">🏆</span>
+                  <span className="text-muted-foreground">Top 10 receive <span className="text-amber-500 font-medium">exclusive badges</span> at week end</span>
+                </div>
+              </div>
             </div>
           </TabsContent>
         ))}

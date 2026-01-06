@@ -45,7 +45,7 @@ export const LoginForm = ({ onToggleMode }: LoginFormProps) => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!resetEmail || !resetEmail.includes('@')) {
       toast.error("Please enter a valid email address");
       return;
@@ -75,7 +75,9 @@ export const LoginForm = ({ onToggleMode }: LoginFormProps) => {
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
+          name="email"
           type="email"
+          autoComplete="email"
           placeholder="your@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -86,7 +88,9 @@ export const LoginForm = ({ onToggleMode }: LoginFormProps) => {
         <Label htmlFor="password">Password</Label>
         <Input
           id="password"
+          name="password"
           type="password"
+          autoComplete="current-password"
           placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -96,7 +100,7 @@ export const LoginForm = ({ onToggleMode }: LoginFormProps) => {
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Signing in..." : "Sign In"}
       </Button>
-      
+
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <DialogTrigger asChild>
           <button

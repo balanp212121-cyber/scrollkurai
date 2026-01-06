@@ -58,6 +58,77 @@ Deno.serve(async (req) => {
       );
     }
 
+    // === SPAM & MEANINGLESS REFLECTION DETECTION ===
+    const cleanedText = reflection_text.trim().toLowerCase();
+
+    // Check for repeated single character (e.g., "aaaaaaaaaa" or "......")
+    const charCounts: Record<string, number> = {};
+    for (const char of cleanedText.replace(/\s/g, '')) {
+      charCounts[char] = (charCounts[char] || 0) + 1;
+    }
+    const totalChars = cleanedText.replace(/\s/g, '').length;
+    const maxCharCount = Math.max(...Object.values(charCounts));
+    if (totalChars > 0 && maxCharCount / totalChars > 0.7) {
+      return new Response(
+        JSON.stringify({ error: 'Please write a meaningful reflection, not repeated characters' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Check for repeated words (e.g., "test test test test")
+    const words = cleanedText.split(/\s+/).filter(w => w.length > 0);
+    if (words.length >= 3) {
+      const wordCounts: Record<string, number> = {};
+      for (const word of words) {
+        wordCounts[word] = (wordCounts[word] || 0) + 1;
+      }
+      const maxWordCount = Math.max(...Object.values(wordCounts));
+      if (maxWordCount / words.length > 0.7) {
+        return new Response(
+          JSON.stringify({ error: 'Please write a genuine reflection, not repeated words' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
+
+    // Check for keyboard mashing patterns (common sequences)
+    const spamPatterns = [
+      /^(.)\1{10,}$/,                    // Single char repeated 10+ times
+      /(asdf|qwer|zxcv|hjkl){2,}/i,      // Keyboard row mashing
+      /^[a-z]{15,}$/,                    // Only lowercase letters, likely gibberish
+      /^(\w{1,3})\1{5,}$/,               // Short pattern repeated many times
+    ];
+
+    for (const pattern of spamPatterns) {
+      if (pattern.test(cleanedText.replace(/\s/g, ''))) {
+        return new Response(
+          JSON.stringify({ error: 'Please write a thoughtful reflection about your experience' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
+
+    // Require at least 3 unique words to ensure some thought was put in
+    const uniqueWords = new Set(words.filter(w => w.length > 2));
+    if (uniqueWords.size < 3) {
+      return new Response(
+        JSON.stringify({ error: 'Please write a more detailed reflection with at least a few different words' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     console.log('Completing quest for log_id:', log_id, 'Golden Quest:', is_golden_quest);
 
     // Verify the log belongs to the user and is not already completed

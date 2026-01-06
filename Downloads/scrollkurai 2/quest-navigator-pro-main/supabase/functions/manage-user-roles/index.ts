@@ -126,20 +126,36 @@ Deno.serve(async (req) => {
     console.log(`Admin ${user.id} ${action}ing role '${role}' for user ${targetUserId} (${targetProfile.username})`);
 
     if (action === 'add') {
-      // Add role to user (upsert to avoid duplicates)
-      const { error: insertError } = await supabaseAdmin
+      // Check if role already exists manually (to avoid 500 if unique constraint is missing)
+      const { data: existingRole, error: checkError } = await supabaseAdmin
         .from('user_roles')
-        .upsert(
-          { user_id: targetUserId, role: role },
-          { onConflict: 'user_id,role' }
-        );
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('role', role)
+        .maybeSingle();
 
-      if (insertError) {
-        console.error('Error adding role:', insertError);
+      if (checkError) {
+        console.error('Error checking existing role:', checkError);
         return new Response(
-          JSON.stringify({ error: 'Failed to add role' }),
+          JSON.stringify({ error: 'Failed to check existing role' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+
+      if (!existingRole) {
+        const { error: insertError } = await supabaseAdmin
+          .from('user_roles')
+          .insert({ user_id: targetUserId, role: role });
+
+        if (insertError) {
+          console.error('Error adding role:', insertError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to add role' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        console.log(`Role ${role} already exists for user ${targetUserId}, skipping insert.`);
       }
 
       // Log the audit entry

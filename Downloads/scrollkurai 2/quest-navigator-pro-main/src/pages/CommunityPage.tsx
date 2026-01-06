@@ -25,7 +25,7 @@ export default function CommunityPage() {
 
   useEffect(() => {
     fetchPosts();
-    
+
     // Set up realtime subscription for new posts
     const channel = supabase
       .channel('community-posts')
@@ -50,7 +50,7 @@ export default function CommunityPage() {
   const fetchPosts = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Use the secure view that masks user_id for anonymous posts
       const { data: postsData, error } = await (supabase as any)
         .from('public_community_posts')
@@ -68,7 +68,7 @@ export default function CommunityPage() {
           .eq('user_id', user.id);
 
         const likedPostIds = new Set(likesData?.map((l: any) => l.post_id) || []);
-        
+
         setPosts(postsData.map((post: Post) => ({
           ...post,
           is_liked: likedPostIds.has(post.id),
@@ -85,8 +85,13 @@ export default function CommunityPage() {
   };
 
   const handlePost = async () => {
-    if (newPost.length < 10) {
+    const trimmedPost = newPost.trim();
+    if (trimmedPost.length < 10) {
       toast.error('Post must be at least 10 characters');
+      return;
+    }
+    if (trimmedPost.length > 500) {
+      toast.error('Post cannot exceed 500 characters');
       return;
     }
 
@@ -191,18 +196,22 @@ export default function CommunityPage() {
       <Card className="p-4 bg-gradient-to-br from-card to-card/50 border-primary/20">
         <div className="space-y-3">
           <Textarea
-            placeholder="Share your reflection or achievement... (min 10 chars)"
+            placeholder="Share your reflection or achievement..."
             value={newPost}
-            onChange={(e) => setNewPost(e.target.value)}
+            onChange={(e) => setNewPost(e.target.value.slice(0, 500))}
             className="min-h-[100px] resize-none"
+            maxLength={500}
           />
           <div className="flex justify-between items-center">
-            <p className="text-xs text-muted-foreground">
-              Posts are anonymous • {newPost.length}/10 chars
-            </p>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p>Posts are anonymous • Minimum 10 characters • Maximum 500</p>
+              <p className={newPost.trim().length < 10 ? 'text-yellow-500' : 'text-green-500'}>
+                {newPost.trim().length} / 500 chars
+              </p>
+            </div>
             <Button
               onClick={handlePost}
-              disabled={posting || newPost.length < 10}
+              disabled={posting || newPost.trim().length < 10 || newPost.trim().length > 500}
               size="sm"
               className="bg-gradient-to-r from-primary to-accent"
             >
@@ -237,7 +246,7 @@ export default function CommunityPage() {
                   </Avatar>
                   <span className="text-sm text-muted-foreground">Anonymous User</span>
                 </div>
-                
+
                 {post.quest_content && (
                   <div className="p-2 bg-primary/10 rounded-md border border-primary/20">
                     <p className="text-xs text-primary font-medium">

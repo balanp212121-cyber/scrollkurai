@@ -60,6 +60,9 @@ verify_jwt = true
 [functions.admin-get-user-streak]
 verify_jwt = true
 
+[functions.admin-delete-user]
+verify_jwt = true
+
 # --- SYSTEM FUNCTIONS (Intentionally Public) ---
 # These are triggered by cron jobs, webhooks, or server-side processes
 

@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
     // Check if user has a streak to recover
     if (!profile.streak_lost_at || !profile.last_streak_count) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         error: 'No streak to recover',
         reason: 'no_lost_streak'
       }), {
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const hoursSinceLost = (now.getTime() - streakLostAt.getTime()) / (1000 * 60 * 60);
 
     if (hoursSinceLost > RECOVERY_WINDOW_HOURS) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         error: 'Streak Insurance expired',
         reason: 'window_expired',
         hours_expired: hoursSinceLost - RECOVERY_WINDOW_HOURS
@@ -77,26 +77,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user has Streak Shield power-up (streak_save effect type)
-    const { data: streakInsurance, error: powerUpError } = await supabaseClient
+    // Check if user has Streak Insurance power-up (streak_save effect type)
+    // First try unused insurance, then check for active but not expired
+    let streakInsurance = null;
+
+    // Try to find unused insurance first (correct behavior)
+    const { data: unusedInsurance, error: unusedError } = await supabaseClient
       .from('user_power_ups')
-      .select('id, power_ups!inner(id, name, effect_type)')
+      .select('id, used_at, power_ups!inner(id, name, effect_type)')
       .eq('user_id', user.id)
       .is('used_at', null)
       .eq('power_ups.effect_type', 'streak_save')
       .limit(1)
       .maybeSingle();
 
-    if (powerUpError) {
-      console.error('Error checking power-ups:', powerUpError);
-      return new Response(JSON.stringify({ error: 'Failed to check power-ups' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (unusedError) {
+      console.error('Error checking unused power-ups:', unusedError);
+    }
+
+    streakInsurance = unusedInsurance;
+
+    // If no unused insurance, check for active but not yet consumed (legacy/incorrectly activated)
+    if (!streakInsurance) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: activeInsurance, error: activeError } = await supabaseClient
+        .from('user_power_ups')
+        .select('id, used_at, power_ups!inner(id, name, effect_type)')
+        .eq('user_id', user.id)
+        .not('used_at', 'is', null)
+        .gte('used_at', twentyFourHoursAgo)
+        .eq('power_ups.effect_type', 'streak_save')
+        .limit(1)
+        .maybeSingle();
+
+      if (activeError) {
+        console.error('Error checking active power-ups:', activeError);
+      }
+
+      streakInsurance = activeInsurance;
     }
 
     if (!streakInsurance) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         error: 'No Streak Insurance available',
         reason: 'no_insurance'
       }), {

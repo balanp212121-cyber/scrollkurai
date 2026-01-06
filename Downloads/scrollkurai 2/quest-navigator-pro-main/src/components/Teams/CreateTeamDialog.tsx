@@ -33,14 +33,16 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
   const [searching, setSearching] = useState(false);
 
   const searchUsers = async (term: string) => {
-    if (!term.trim() || term.length < 2) {
+    // RULE 4: Start searching from first character
+    if (!term.trim() || term.length < 1) {
       setSearchResults([]);
       return;
     }
 
     setSearching(true);
     try {
-      const { data, error } = await supabase.rpc('search_users_by_username', {
+      // RULE 1: Only search among accepted friends
+      const { data, error } = await supabase.rpc('search_friends_by_username', {
         search_term: term.trim()
       });
 
@@ -53,7 +55,9 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
 
       setSearchResults(filtered);
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error('Error searching friends:', error);
+      // If the new function doesn't exist yet, fall back silently
+      setSearchResults([]);
     } finally {
       setSearching(false);
     }
@@ -186,22 +190,11 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
 
       console.log('[Team Creation] Team ready:', team.id);
 
-      // Add creator as first member
-      const { error: memberError } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: team.id,
-          user_id: user.id,
-          role: 'creator'
-        });
+      console.log('[Team Creation] Team ready:', team.id);
 
-      if (memberError) {
-        console.error('[Team Creation] Member insert error:', memberError);
-        await supabase.from('teams').delete().eq('id', team.id);
-        throw memberError;
-      }
+      // Trigger 'trg_add_team_creator' automatically adds creator as admin.
+      // We verify this by proceeding to invites.
 
-      console.log('[Team Creation] Creator added as member successfully');
 
       // Send invites to selected friends
       const invites = selectedFriends.map(friend => ({

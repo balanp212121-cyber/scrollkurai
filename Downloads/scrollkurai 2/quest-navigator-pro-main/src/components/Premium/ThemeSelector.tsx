@@ -49,10 +49,10 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
           async (payload) => {
             if (payload.new.premium_status !== payload.old.premium_status) {
               setCurrentPremiumStatus(payload.new.premium_status || false);
-              
+
               // Refresh session to ensure server sees updated premium status
               await supabase.auth.refreshSession();
-              
+
               // Refresh themes to show newly unlocked options
               fetchThemes();
             }
@@ -100,7 +100,12 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
         .single();
 
       setThemes(themesData || []);
-      setSelectedThemeId(userTheme?.theme_id || themesData?.[0]?.id || null);
+
+      // Find the "Default" theme to use as fallback for users without a selection
+      const defaultTheme = themesData?.find((t: Theme) =>
+        t.name === 'default' || t.display_name === 'Default Theme' || !t.is_premium_only
+      );
+      setSelectedThemeId(userTheme?.theme_id || defaultTheme?.id || themesData?.[0]?.id || null);
     } catch (error) {
       console.error("Error fetching themes:", error);
     } finally {
@@ -139,9 +144,17 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
       if (error) {
         // RLS policy will reject if user doesn't have premium_status for premium themes
         if (error.code === 'PGRST301' || error.message.includes('violates')) {
-          toast.error("Premium verification failed", {
-            description: "Please ensure your ScrollKurai Pro subscription is active",
-          });
+          // Check if user is actually premium - if not, show upgrade message instead of "verification failed"
+          if (!currentPremiumStatus) {
+            toast.error("Premium Required", {
+              description: "Upgrade to ScrollKurai Pro to unlock this theme",
+            });
+          } else {
+            // Premium user but subscription check failed - might be expired
+            toast.error("Subscription Issue", {
+              description: "Please refresh the page or contact support if your premium subscription is active",
+            });
+          }
         } else {
           throw error;
         }
@@ -151,7 +164,7 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
       // Track analytics event
       try {
         await supabase.functions.invoke('track-analytics', {
-          body: { 
+          body: {
             event: 'theme_selected',
             theme_id: themeId,
             theme_name: theme.name,
@@ -205,7 +218,7 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
       </div>
 
       <p className="text-sm text-muted-foreground mb-6">
-        {currentPremiumStatus 
+        {currentPremiumStatus
           ? "Choose your favorite theme to personalize your experience"
           : "Unlock premium themes with ScrollKurai Pro"}
       </p>
@@ -218,11 +231,10 @@ export function ThemeSelector({ isPremium }: ThemeSelectorProps) {
           return (
             <div
               key={theme.id}
-              className={`relative rounded-lg border-2 transition-all ${
-                isSelected
-                  ? "border-primary shadow-lg shadow-primary/20"
-                  : "border-border hover:border-primary/50"
-              } ${isLocked ? "opacity-60" : ""}`}
+              className={`relative rounded-lg border-2 transition-all ${isSelected
+                ? "border-primary shadow-lg shadow-primary/20"
+                : "border-border hover:border-primary/50"
+                } ${isLocked ? "opacity-60" : ""}`}
             >
               {/* Theme Preview */}
               <div

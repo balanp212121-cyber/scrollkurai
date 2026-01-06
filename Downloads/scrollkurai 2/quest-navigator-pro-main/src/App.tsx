@@ -27,6 +27,7 @@ import PaymentHistoryPage from "./pages/PaymentHistoryPage";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import { AdminRouteGuard } from "./components/Admin/AdminRouteGuard";
 import GeminiPlaygroundPage from "./pages/GeminiPlaygroundPage";
+import InviteJoinPage from "./pages/InviteJoinPage";
 
 /**
  * Main App component
@@ -63,6 +64,7 @@ const App = () => {
         <Route path="/payment-history" element={<PaymentHistoryPage />} />
         <Route path="/admin" element={<AdminRouteGuard><AdminDashboard /></AdminRouteGuard>} />
         <Route path="/gemini" element={<GeminiPlaygroundPage />} />
+        <Route path="/join/:token" element={<InviteJoinPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

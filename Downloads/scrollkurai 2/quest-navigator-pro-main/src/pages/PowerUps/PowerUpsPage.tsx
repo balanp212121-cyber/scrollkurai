@@ -87,6 +87,43 @@ export default function PowerUpsPage() {
     fetchData();
   }, []);
 
+  // Real-time subscription for power-ups changes (CRITICAL: fixes purchase sync bug)
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('user_power_ups_realtime')
+      .on('postgres_changes', {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'user_power_ups',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
+        console.log('[PowerUps] Real-time update received:', payload.eventType);
+        fetchData(); // Re-fetch all data on any change
+      })
+      .subscribe((status) => {
+        console.log('[PowerUps] Real-time subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  // Re-sync on app resume (visibility change)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && userId) {
+        console.log('[PowerUps] App resumed, re-fetching data');
+        fetchData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userId]);
+
   // Auto-refresh active power-ups every minute
   useEffect(() => {
     const interval = setInterval(() => {
@@ -109,7 +146,7 @@ export default function PowerUpsPage() {
   const fetchData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Fetch all power-ups
       const { data: powerUpsData } = await supabase
         .from('power_ups')
@@ -120,7 +157,7 @@ export default function PowerUpsPage() {
 
       if (user) {
         setUserId(user.id);
-        
+
         // Check premium status from server (authoritative)
         const { data: profile } = await supabase
           .from('profiles')
@@ -130,8 +167,12 @@ export default function PowerUpsPage() {
 
         setIsPremium(profile?.premium_status === true);
 
-        // Check if user has Streak Shield available (streak_save effect type)
-        const { data: insuranceData } = await supabase
+        // Check if user has Streak Insurance available (streak_save effect type)
+        // Check both unused AND active-but-not-expired (within 24 hours)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // First check unused insurance
+        const { data: unusedInsurance } = await supabase
           .from('user_power_ups')
           .select('id, power_ups!inner(effect_type)')
           .eq('user_id', user.id)
@@ -139,7 +180,20 @@ export default function PowerUpsPage() {
           .eq('power_ups.effect_type', 'streak_save')
           .limit(1);
 
-        setHasStreakInsurance(insuranceData && insuranceData.length > 0);
+        // Also check active but not expired insurance (legacy/incorrectly activated)
+        const { data: activeInsurance } = await supabase
+          .from('user_power_ups')
+          .select('id, used_at, power_ups!inner(effect_type)')
+          .eq('user_id', user.id)
+          .not('used_at', 'is', null)
+          .gte('used_at', twentyFourHoursAgo)
+          .eq('power_ups.effect_type', 'streak_save')
+          .limit(1);
+
+        setHasStreakInsurance(
+          (unusedInsurance && unusedInsurance.length > 0) ||
+          (activeInsurance && activeInsurance.length > 0)
+        );
 
         // Fetch user's active power-ups (used within duration period)
         const { data: userPowerUpsData } = await supabase
@@ -159,12 +213,12 @@ export default function PowerUpsPage() {
               const activatedAt = new Date(up.used_at);
               const durationHours = getDurationHours(up.power_ups);
               const expiresAt = new Date(activatedAt.getTime() + durationHours * 60 * 60 * 1000);
-              
+
               // Count weekly usage
               if (activatedAt >= weekStart) {
                 weeklyCount++;
               }
-              
+
               if (expiresAt > now) {
                 active.push({
                   id: up.id,
@@ -228,6 +282,14 @@ export default function PowerUpsPage() {
     if (isAlreadyActive(powerUp.id)) {
       toast.info("Already active", {
         description: `${powerUp.name} is already active!`
+      });
+      return;
+    }
+
+    // Streak Insurance (streak_save) cannot be "activated" - it's consumed when restoring a streak
+    if (powerUp.effect_type === 'streak_save') {
+      toast.info("Streak Insurance Ready!", {
+        description: "This will automatically be used when you need to restore a lost streak."
       });
       return;
     }
@@ -347,11 +409,11 @@ export default function PowerUpsPage() {
         origin: { y: 0.7 }
       });
 
-      const usesInfo = needsExtraPowerUp 
+      const usesInfo = needsExtraPowerUp
         ? `Used an extra power-up. ${extraPowerUpsCount - 1} extra remaining.`
         : `${Math.max(0, remainingWeeklyUses - 1)} weekly uses left.`;
 
-      const boosterMessage = powerUp.effect_type === 'xp_multiplier' 
+      const boosterMessage = powerUp.effect_type === 'xp_multiplier'
         ? `${powerUp.name} is now active! You'll earn 2× XP for ${durationHours} hours.`
         : `${powerUp.name} is now active for ${durationHours} hours. ${usesInfo}`;
 
@@ -399,7 +461,7 @@ export default function PowerUpsPage() {
       if (txError) throw txError;
 
       setCurrentTransactionId(transaction.id);
-      
+
       if (FEATURE_FLAGS.enable_manual_payment_review) {
         setPaymentDialogOpen(false);
         setShowProofUpload(true);
@@ -443,7 +505,7 @@ export default function PowerUpsPage() {
     setCurrentTransactionId(null);
     setSelectedPowerUp(null);
     setSelectedBundle(null);
-    
+
     toast.success("Payment proof uploaded!", {
       description: "Your purchase will be activated once approved by our team"
     });
@@ -483,7 +545,7 @@ export default function PowerUpsPage() {
       if (txError) throw txError;
 
       setCurrentTransactionId(transaction.id);
-      
+
       if (FEATURE_FLAGS.enable_manual_payment_review) {
         setPaymentDialogOpen(false);
         setShowProofUpload(true);
@@ -566,7 +628,7 @@ export default function PowerUpsPage() {
               <div>
                 <p className="font-semibold text-gold">Premium Unlocked</p>
                 <p className="text-sm text-muted-foreground">
-                  {remainingWeeklyUses > 0 
+                  {remainingWeeklyUses > 0
                     ? `${remainingWeeklyUses} of ${MAX_WEEKLY_POWERUPS} weekly uses left`
                     : `Weekly limit reached`
                   }
@@ -575,8 +637,8 @@ export default function PowerUpsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge 
-                variant={totalAvailableUses > 0 ? "default" : "destructive"} 
+              <Badge
+                variant={totalAvailableUses > 0 ? "default" : "destructive"}
                 className="text-lg px-3 py-1"
               >
                 {totalAvailableUses} available
@@ -644,15 +706,14 @@ export default function PowerUpsPage() {
           {powerUps.map((powerUp) => {
             const active = isAlreadyActive(powerUp.id);
             return (
-              <Card 
-                key={powerUp.id} 
-                className={`p-6 transition-colors ${
-                  active 
-                    ? 'border-green-500/50 bg-green-500/5'
-                    : isPremium 
-                      ? 'hover:border-gold/50 border-gold/20' 
-                      : 'hover:border-primary/50'
-                }`}
+              <Card
+                key={powerUp.id}
+                className={`p-6 transition-colors ${active
+                  ? 'border-green-500/50 bg-green-500/5'
+                  : isPremium
+                    ? 'hover:border-gold/50 border-gold/20'
+                    : 'hover:border-primary/50'
+                  }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex gap-4 flex-1">
@@ -699,7 +760,7 @@ export default function PowerUpsPage() {
                           {getDurationHours(powerUp)}h duration
                         </div>
                         {hasHitWeeklyLimit && !active ? (
-                          <Button 
+                          <Button
                             onClick={() => {
                               setPendingPowerUpForExtra(powerUp);
                               setBuyMoreDialogOpen(true);
@@ -710,20 +771,19 @@ export default function PowerUpsPage() {
                             Buy More
                           </Button>
                         ) : (
-                          <Button 
+                          <Button
                             onClick={() => handleUsePowerUp(powerUp)}
                             disabled={activatingId === powerUp.id || active}
-                            className={`w-full ${
-                              active 
-                                ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30' 
-                                : 'bg-gold hover:bg-gold/90 text-black'
-                            }`}
+                            className={`w-full ${active
+                              ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30'
+                              : 'bg-gold hover:bg-gold/90 text-black'
+                              }`}
                             variant={active ? "outline" : "default"}
                           >
-                            {activatingId === powerUp.id 
-                              ? "Activating..." 
-                              : active 
-                                ? "Active" 
+                            {activatingId === powerUp.id
+                              ? "Activating..."
+                              : active
+                                ? "Active"
                                 : "Use Now"
                             }
                           </Button>
@@ -732,7 +792,7 @@ export default function PowerUpsPage() {
                     ) : (
                       <>
                         <div className="text-2xl font-bold text-gold">₹{powerUp.price}</div>
-                        <Button 
+                        <Button
                           onClick={() => handlePurchaseClick(powerUp.id, powerUp.name, powerUp.price)}
                           variant="outline"
                           className="w-full"
@@ -753,7 +813,7 @@ export default function PowerUpsPage() {
       {/* Footer Notice */}
       <Card className="p-4 bg-muted/50">
         <p className="text-xs text-center text-muted-foreground">
-          {isPremium 
+          {isPremium
             ? hasHitWeeklyLimit
               ? `🛒 Need more power-ups? Purchase extras anytime!`
               : `✨ Premium members get ${MAX_WEEKLY_POWERUPS} power-ups per week. Resets every Monday!`
@@ -777,7 +837,7 @@ export default function PowerUpsPage() {
 
           <div className="space-y-3 py-4">
             {EXTRA_POWERUP_BUNDLES.map((bundle) => (
-              <Card 
+              <Card
                 key={bundle.quantity}
                 className="p-4 hover:border-gold/50 cursor-pointer transition-colors"
                 onClick={() => handleBuyMoreClick(bundle)}

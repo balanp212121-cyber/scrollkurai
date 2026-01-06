@@ -9,6 +9,7 @@ import { initializePushNotifications } from "@/utils/pushNotifications";
 import { useEmotionalNotifications } from "@/hooks/useEmotionalNotifications";
 import { useEnsureUserProfile } from "@/hooks/useEnsureUserProfile";
 import { useEntitlementCheck } from "@/hooks/useEntitlementCheck";
+import { toast } from "sonner";
 
 
 interface AppLayoutProps {
@@ -19,13 +20,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Initialize emotional notifications
   useEmotionalNotifications();
-  
+
   // Ensure user profile exists (fallback mechanism)
   useEnsureUserProfile();
-  
+
   // Check for missed entitlements on startup
   useEntitlementCheck();
 
@@ -33,7 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     const checkSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         // Handle invalid/expired session
         if (error || (!session && location.pathname !== "/auth")) {
           // Clear any stale auth data
@@ -61,8 +62,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         navigate("/auth");
         return;
       }
-      
+
       if (event === 'SIGNED_OUT' || (!session && location.pathname !== "/auth")) {
+        toast.success("Signed out successfully");
         navigate("/auth");
       } else if (session && location.pathname === "/auth") {
         navigate("/");
@@ -89,7 +91,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-background">
       <OnboardingWrapper>
         <Header />
-        
+
         <main className="container mx-auto px-4 py-6 max-w-lg">
           {children}
         </main>

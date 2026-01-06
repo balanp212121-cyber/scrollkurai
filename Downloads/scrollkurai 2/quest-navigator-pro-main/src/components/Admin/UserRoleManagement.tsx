@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Shield, ShieldAlert, User, UserMinus, UserPlus } from "lucide-react";
+import { Search, Shield, ShieldAlert, User, UserMinus, UserPlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { RoleAuditLog } from "./RoleAuditLog";
@@ -124,6 +124,32 @@ export function UserRoleManagement() {
     }
   });
 
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: {
+          targetUserId: userId,
+          reason: 'Deleted via Admin Dashboard'
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "User deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["admin-user-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-search-users"] });
+      setSelectedUser(null);
+      setSearchTerm("");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete user");
+    }
+  });
+
   const handleAddRole = () => {
     if (!selectedUser) {
       toast.error("Please select a user first");
@@ -135,6 +161,17 @@ export function UserRoleManagement() {
   const handleRemoveRole = (userId: string, role: string) => {
     if (window.confirm(`Are you sure you want to remove the '${role}' role? This action will be logged.`)) {
       removeRoleMutation.mutate({ userId, role });
+    }
+  };
+
+  const handleDeleteUser = () => {
+    if (!selectedUser) return;
+
+    // Double confirmation for safety
+    if (window.confirm(`DANGER: Are you sure you want to PERMANENTLY DELETE user '${selectedUser.username}'?`)) {
+      if (window.confirm(`This action cannot be undone. All data for '${selectedUser.username}' will be lost. Confirm deletion?`)) {
+        deleteUserMutation.mutate(selectedUser.id);
+      }
     }
   };
 
@@ -245,10 +282,20 @@ export function UserRoleManagement() {
             </Button>
           </div>
           {selectedUser && (
-            <div className="p-3 bg-accent/50 rounded-lg">
+            <div className="p-3 bg-accent/50 rounded-lg flex items-center justify-between">
               <p className="text-sm">
                 Selected: <span className="font-semibold">{selectedUser.username}</span> (Level {selectedUser.level})
               </p>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteUser}
+                disabled={deleteUserMutation.isPending}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+              </Button>
             </div>
           )}
         </CardContent>

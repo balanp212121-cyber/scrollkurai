@@ -57,7 +57,7 @@ export function BuyStreakShieldModal({ open, onOpenChange, streakLost }: BuyStre
                     user_id: user.id,
                     amount: pkg.priceINR,
                     currency: "INR",
-                    item_type: "Streak Shield",
+                    item_type: "Streak Insurance",
                     item_name: pkg.label,
                     payment_method: "UPI/Card",
                     status: "pending",
@@ -84,7 +84,7 @@ export function BuyStreakShieldModal({ open, onOpenChange, streakLost }: BuyStre
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Shield className="w-5 h-5 text-blue-500" />
-                        Streak Shield
+                        Streak Insurance
                     </DialogTitle>
                     <DialogDescription>
                         Protect your streak from future missed days

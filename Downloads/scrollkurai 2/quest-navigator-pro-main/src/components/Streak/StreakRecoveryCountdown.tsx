@@ -39,6 +39,26 @@ export function StreakRecoveryCountdown({
     return () => clearInterval(interval);
   }, [streakLostAt]);
 
+  // Real-time subscription for insurance changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('streak_countdown_insurance')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_power_ups',
+        filter: `user_id=eq.${userId}`,
+      }, () => {
+        console.log('[StreakCountdown] Insurance state changed, re-checking');
+        checkInsurance();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
   const checkInsurance = async () => {
     try {
       const { data, error } = await supabase
@@ -128,39 +148,36 @@ export function StreakRecoveryCountdown({
     return null;
   }
 
-  const urgencyLevel = timeRemaining < 3 * 60 * 60 * 1000 ? 'critical' : 
-                       timeRemaining < 6 * 60 * 60 * 1000 ? 'warning' : 'normal';
+  const urgencyLevel = timeRemaining < 3 * 60 * 60 * 1000 ? 'critical' :
+    timeRemaining < 6 * 60 * 60 * 1000 ? 'warning' : 'normal';
 
   return (
-    <Card className={`p-4 border-2 ${
-      isExpired 
-        ? 'border-destructive/50 bg-destructive/5' 
+    <Card className={`p-4 border-2 ${isExpired
+        ? 'border-destructive/50 bg-destructive/5'
         : urgencyLevel === 'critical'
           ? 'border-destructive/50 bg-destructive/5 animate-pulse'
           : urgencyLevel === 'warning'
             ? 'border-yellow-500/50 bg-yellow-500/5'
             : 'border-primary/50 bg-primary/5'
-    }`}>
+      }`}>
       <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-full ${
-          isExpired 
-            ? 'bg-destructive/20' 
+        <div className={`p-3 rounded-full ${isExpired
+            ? 'bg-destructive/20'
             : urgencyLevel === 'critical'
               ? 'bg-destructive/20'
               : urgencyLevel === 'warning'
                 ? 'bg-yellow-500/20'
                 : 'bg-primary/20'
-        }`}>
+          }`}>
           {isExpired ? (
             <AlertTriangle className="w-6 h-6 text-destructive" />
           ) : (
-            <Clock className={`w-6 h-6 ${
-              urgencyLevel === 'critical' 
-                ? 'text-destructive' 
+            <Clock className={`w-6 h-6 ${urgencyLevel === 'critical'
+                ? 'text-destructive'
                 : urgencyLevel === 'warning'
                   ? 'text-yellow-500'
                   : 'text-primary'
-            }`} />
+              }`} />
           )}
         </div>
 
@@ -171,7 +188,7 @@ export function StreakRecoveryCountdown({
                 {isExpired ? 'Streak Insurance Expired' : 'Recover Your Streak'}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {isExpired 
+                {isExpired
                   ? `Your ${lastStreakCount}-day streak could not be recovered`
                   : `Your ${lastStreakCount}-day streak can still be saved!`
                 }
@@ -184,13 +201,12 @@ export function StreakRecoveryCountdown({
 
           {!isExpired && (
             <>
-              <div className={`text-2xl font-bold font-mono ${
-                urgencyLevel === 'critical' 
-                  ? 'text-destructive' 
+              <div className={`text-2xl font-bold font-mono ${urgencyLevel === 'critical'
+                  ? 'text-destructive'
                   : urgencyLevel === 'warning'
                     ? 'text-yellow-500'
                     : 'text-primary'
-              }`}>
+                }`}>
                 {formatTime(timeRemaining)} left
               </div>
 
@@ -198,8 +214,8 @@ export function StreakRecoveryCountdown({
                 <Button
                   onClick={handleRestoreStreak}
                   disabled={isRestoring || !hasInsurance}
-                  className={hasInsurance 
-                    ? "bg-primary hover:bg-primary/90" 
+                  className={hasInsurance
+                    ? "bg-primary hover:bg-primary/90"
                     : "bg-muted text-muted-foreground"
                   }
                 >

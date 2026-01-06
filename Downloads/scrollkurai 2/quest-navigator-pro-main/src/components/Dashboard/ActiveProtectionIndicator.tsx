@@ -70,7 +70,7 @@ export function ActiveProtectionIndicator() {
                             </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>Streak Shield: {protection.shield.days_remaining} day{protection.shield.days_remaining !== 1 && "s"} remaining</p>
+                            <p>Streak Insurance: {protection.shield.days_remaining} day{protection.shield.days_remaining !== 1 && "s"} remaining</p>
                         </TooltipContent>
                     </Tooltip>
                 )}

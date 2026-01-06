@@ -43,7 +43,7 @@ export const SignupForm = ({ onToggleMode }: SignupFormProps) => {
     if (referralCode) {
       try {
         const { data: { user: newUser } } = await supabase.auth.getUser();
-        
+
         if (newUser) {
           // Find the referrer by code
           const { data: referralData, error: referralError } = await supabase
@@ -80,12 +80,14 @@ export const SignupForm = ({ onToggleMode }: SignupFormProps) => {
           </p>
         </div>
       )}
-      
+
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <Input
           id="username"
+          name="username"
           type="text"
+          autoComplete="username"
           placeholder="kurai_warrior"
           value={username}
           onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30))}
@@ -99,7 +101,9 @@ export const SignupForm = ({ onToggleMode }: SignupFormProps) => {
         <Label htmlFor="signup-email">Email</Label>
         <Input
           id="signup-email"
+          name="email"
           type="email"
+          autoComplete="email"
           placeholder="your@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -110,7 +114,9 @@ export const SignupForm = ({ onToggleMode }: SignupFormProps) => {
         <Label htmlFor="signup-password">Password</Label>
         <Input
           id="signup-password"
+          name="password"
           type="password"
+          autoComplete="new-password"
           placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

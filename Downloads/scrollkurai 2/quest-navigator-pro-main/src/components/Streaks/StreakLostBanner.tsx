@@ -34,7 +34,7 @@ export function StreakLostBanner({ lostStreak, onDismiss }: StreakLostBannerProp
                                 onClick={() => setShowShieldModal(true)}
                             >
                                 <Shield className="w-4 h-4 mr-1" />
-                                Buy Streak Shield
+                                Buy Streak Insurance
                             </Button>
                             {onDismiss && (
                                 <Button

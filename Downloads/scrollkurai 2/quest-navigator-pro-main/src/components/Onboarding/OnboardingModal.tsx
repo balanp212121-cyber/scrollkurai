@@ -153,14 +153,14 @@ export const OnboardingModal = ({ isOpen, onComplete }: OnboardingModalProps) =>
       let verifyAttempts = 0;
       const maxAttempts = 3;
       let verified = false;
-      
+
       while (verifyAttempts < maxAttempts && !verified) {
         const { data: verifyProgress } = await supabase
           .from('onboarding_progress')
           .select('completed_at')
           .eq('user_id', user.id)
           .maybeSingle();
-        
+
         if (verifyProgress?.completed_at) {
           verified = true;
           console.log('Onboarding completion verified:', verifyProgress.completed_at);
@@ -204,7 +204,7 @@ export const OnboardingModal = ({ isOpen, onComplete }: OnboardingModalProps) =>
 
       // Close modal first
       onComplete();
-      
+
       // Navigate after verified completion
       setTimeout(() => {
         navigate('/', { replace: true });
@@ -240,7 +240,7 @@ export const OnboardingModal = ({ isOpen, onComplete }: OnboardingModalProps) =>
         }
       }}
     >
-      <DialogContent className="max-w-2xl p-0 gap-0 border-0 bg-background/95 backdrop-blur-sm">
+      <DialogContent className="max-w-2xl w-[95%] sm:w-full p-0 gap-0 border-0 bg-background/95 backdrop-blur-sm max-h-[70dvh] sm:max-h-[80vh] flex flex-col overflow-hidden rounded-xl">
         <VisuallyHidden>
           <DialogTitle>Getting Started</DialogTitle>
           <DialogDescription>
@@ -251,17 +251,17 @@ export const OnboardingModal = ({ isOpen, onComplete }: OnboardingModalProps) =>
           <OnboardingWelcome onNext={() => handleNext('goal')} />
         )}
         {currentStep === 'goal' && (
-          <OnboardingGoalSelection 
+          <OnboardingGoalSelection
             selectedGoal={selectedGoal}
             onSelectGoal={setSelectedGoal}
-            onNext={() => handleNext('quest')} 
+            onNext={() => handleNext('quest')}
           />
         )}
         {currentStep === 'quest' && (
           <OnboardingFirstQuest onNext={() => handleNext('invite')} />
         )}
         {currentStep === 'invite' && (
-          <OnboardingInvite 
+          <OnboardingInvite
             onSkip={handleSkipInvite}
             onComplete={handleCompleteInvite}
           />

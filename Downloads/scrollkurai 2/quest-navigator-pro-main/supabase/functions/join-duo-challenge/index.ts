@@ -47,7 +47,22 @@ Deno.serve(async (req) => {
             throw new Error('Partner not found');
         }
 
-        // 2. Check if either user is already participating
+        // 2. RULE 1: Verify partner is a friend (accepted friendship)
+        const { data: friendship, error: friendError } = await supabaseClient
+            .from('friends')
+            .select('id')
+            .or(`and(user_id.eq.${user.id},friend_id.eq.${partner_id},status.eq.accepted),and(user_id.eq.${partner_id},friend_id.eq.${user.id},status.eq.accepted)`)
+            .maybeSingle();
+
+        if (friendError) {
+            console.error('Friend check error:', friendError);
+        }
+
+        if (!friendship) {
+            throw new Error('You can only create Duo Challenges with friends');
+        }
+
+        // 3. Check if either user is already participating
         const { data: existingParticipants } = await supabaseClient
             .from('challenge_participants')
             .select('user_id')

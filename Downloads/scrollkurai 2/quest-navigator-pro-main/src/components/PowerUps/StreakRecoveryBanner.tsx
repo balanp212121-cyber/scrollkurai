@@ -15,7 +15,7 @@ interface StreakRecoveryBannerProps {
 
 const RECOVERY_WINDOW_HOURS = 24;
 
-export function StreakRecoveryBanner({ userId, hasInsurance, onRecovered }: StreakRecoveryBannerProps) {
+export function StreakRecoveryBanner({ userId, hasInsurance: initialHasInsurance, onRecovered }: StreakRecoveryBannerProps) {
   const [streakData, setStreakData] = useState<{
     streakLostAt: string | null;
     lastStreakCount: number | null;
@@ -27,17 +27,62 @@ export function StreakRecoveryBanner({ userId, hasInsurance, onRecovered }: Stre
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [restoredStreak, setRestoredStreak] = useState(0);
 
+  // CRITICAL FIX: Internal state for insurance, initialized from prop but updated via real-time
+  const [hasInsuranceState, setHasInsuranceState] = useState(initialHasInsurance);
+
+  // Sync initial prop to state when it changes
+  useEffect(() => {
+    setHasInsuranceState(initialHasInsurance);
+  }, [initialHasInsurance]);
+
   useEffect(() => {
     fetchStreakData();
+    checkInsurance(); // Fetch authoritative state from DB
+  }, [userId]);
+
+  // Real-time subscription for insurance changes (CRITICAL: fixes "Need Insurance" bug)
+  useEffect(() => {
+    const channel = supabase
+      .channel('streak_banner_insurance')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_power_ups',
+        filter: `user_id=eq.${userId}`,
+      }, () => {
+        console.log('[StreakBanner] Insurance state changed, re-checking');
+        checkInsurance();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userId]);
 
   useEffect(() => {
     if (!streakData?.streakLostAt) return;
-    
+
     updateTimeRemaining();
     const interval = setInterval(updateTimeRemaining, 1000);
     return () => clearInterval(interval);
   }, [streakData]);
+
+  const checkInsurance = async () => {
+    const { data, error } = await supabase
+      .from('user_power_ups')
+      .select('id, power_ups!inner(effect_type)')
+      .eq('user_id', userId)
+      .is('used_at', null)
+      .eq('power_ups.effect_type', 'streak_save')
+      .limit(1);
+
+    if (!error) {
+      const hasInsurance = !!data && data.length > 0;
+      setHasInsuranceState(hasInsurance);
+      console.log('[StreakBanner] Insurance check result:', hasInsurance);
+    }
+  };
 
   const fetchStreakData = async () => {
     const { data, error } = await supabase
@@ -78,7 +123,7 @@ export function StreakRecoveryBanner({ userId, hasInsurance, onRecovered }: Stre
   };
 
   const handleRestoreStreak = async () => {
-    if (!hasInsurance) {
+    if (!hasInsuranceState) {
       toast.info("Get Streak Insurance below to recover your streak!");
       return;
     }
@@ -124,50 +169,46 @@ export function StreakRecoveryBanner({ userId, hasInsurance, onRecovered }: Stre
     return null;
   }
 
-  const urgencyLevel = timeRemaining < 3 * 60 * 60 * 1000 ? 'critical' : 
-                       timeRemaining < 6 * 60 * 60 * 1000 ? 'warning' : 'normal';
+  const urgencyLevel = timeRemaining < 3 * 60 * 60 * 1000 ? 'critical' :
+    timeRemaining < 6 * 60 * 60 * 1000 ? 'warning' : 'normal';
 
   return (
-    <Card className={`p-4 border-2 ${
-      urgencyLevel === 'critical'
-        ? 'border-destructive bg-destructive/10 animate-pulse'
-        : urgencyLevel === 'warning'
-          ? 'border-yellow-500 bg-yellow-500/10'
-          : 'border-orange-500 bg-orange-500/10'
-    }`}>
+    <Card className={`p-4 border-2 ${urgencyLevel === 'critical'
+      ? 'border-destructive bg-destructive/10 animate-pulse'
+      : urgencyLevel === 'warning'
+        ? 'border-yellow-500 bg-yellow-500/10'
+        : 'border-orange-500 bg-orange-500/10'
+      }`}>
       <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-full ${
-          urgencyLevel === 'critical'
-            ? 'bg-destructive/20'
+        <div className={`p-3 rounded-full ${urgencyLevel === 'critical'
+          ? 'bg-destructive/20'
+          : urgencyLevel === 'warning'
+            ? 'bg-yellow-500/20'
+            : 'bg-orange-500/20'
+          }`}>
+          <Flame className={`w-6 h-6 ${urgencyLevel === 'critical'
+            ? 'text-destructive'
             : urgencyLevel === 'warning'
-              ? 'bg-yellow-500/20'
-              : 'bg-orange-500/20'
-        }`}>
-          <Flame className={`w-6 h-6 ${
-            urgencyLevel === 'critical'
-              ? 'text-destructive'
-              : urgencyLevel === 'warning'
-                ? 'text-yellow-500'
-                : 'text-orange-500'
-          }`} />
+              ? 'text-yellow-500'
+              : 'text-orange-500'
+            }`} />
         </div>
 
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold">Recover Your {streakData.lastStreakCount}-Day Streak!</h3>
-            <Badge variant="outline" className={`${
-              urgencyLevel === 'critical'
-                ? 'border-destructive text-destructive'
-                : urgencyLevel === 'warning'
-                  ? 'border-yellow-500 text-yellow-500'
-                  : 'border-orange-500 text-orange-500'
-            }`}>
+            <Badge variant="outline" className={`${urgencyLevel === 'critical'
+              ? 'border-destructive text-destructive'
+              : urgencyLevel === 'warning'
+                ? 'border-yellow-500 text-yellow-500'
+                : 'border-orange-500 text-orange-500'
+              }`}>
               <Clock className="w-3 h-3 mr-1" />
               {formatTime(timeRemaining)} left
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {hasInsurance 
+            {hasInsuranceState
               ? "You have Streak Insurance! Use it now to restore your streak."
               : "Purchase Streak Insurance below to save your streak before time runs out."
             }
@@ -176,16 +217,16 @@ export function StreakRecoveryBanner({ userId, hasInsurance, onRecovered }: Stre
 
         <Button
           onClick={handleRestoreStreak}
-          disabled={isRestoring || !hasInsurance}
-          className={hasInsurance 
-            ? "bg-orange-500 hover:bg-orange-600 text-white" 
+          disabled={isRestoring || !hasInsuranceState}
+          className={hasInsuranceState
+            ? "bg-orange-500 hover:bg-orange-600 text-white"
             : "bg-muted text-muted-foreground"
           }
           size="lg"
         >
           {isRestoring ? (
             "Restoring..."
-          ) : hasInsurance ? (
+          ) : hasInsuranceState ? (
             <>
               <Shield className="w-4 h-4 mr-2" />
               Restore Now

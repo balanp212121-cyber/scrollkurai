@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Crown, UserPlus, LogOut, BarChart3, RefreshCw, Trash2 } from "lucide-react";
+import { Users, Crown, UserPlus, LogOut, BarChart3, RefreshCw, Trash2, Link2, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TeamInviteDialog } from "./TeamInviteDialog";
@@ -55,6 +55,9 @@ export function TeamsList() {
   const [viewingStatsTeam, setViewingStatsTeam] = useState<Team | null>(null);
   const [deletingTeam, setDeletingTeam] = useState<string | null>(null);
   const [avatars, setAvatars] = useState<Record<string, UserAvatar>>({});
+  const [generatingLink, setGeneratingLink] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const queryClient = useQueryClient();
 
   const getAvatarDisplay = (userId: string, username: string) => {
@@ -221,55 +224,61 @@ export function TeamsList() {
 
     setLeavingTeam(teamId);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('team_id', teamId)
-        .eq('user_id', user.id);
-
+      const { error } = await supabase.rpc('leave_team', { p_team_id: teamId });
       if (error) throw error;
 
       toast.success(`You left "${teamName}"`);
       fetchTeams();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error leaving team:', error);
-      toast.error('Failed to leave team');
+      toast.error(error.message || 'Failed to leave team');
     } finally {
       setLeavingTeam(null);
     }
   };
 
   const handleDeleteTeam = async (teamId: string, teamName: string) => {
-    if (!confirm(`Are you sure you want to delete "${teamName}"? This action cannot be undone.`)) return;
+    if (!confirm(`Are you sure you want to dissolve "${teamName}"? This will remove all members and cannot be undone.`)) return;
 
     setDeletingTeam(teamId);
     try {
-      // First delete all team members
-      const { error: membersError } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('team_id', teamId);
+      const { error } = await supabase.rpc('dissolve_team', { p_team_id: teamId });
+      if (error) throw error;
 
-      if (membersError) throw membersError;
+      toast.success(`Team "${teamName}" has been dissolved`);
+      fetchTeams();
+    } catch (error: any) {
+      console.error('Error dissolving team:', error);
+      toast.error(error.message || 'Failed to dissolve team');
+    } finally {
+      setDeletingTeam(null);
+    }
+  };
 
-      // Then delete the team
-      const { error } = await supabase
-        .from('teams')
-        .delete()
-        .eq('id', teamId);
+  const handleGenerateInviteLink = async (teamId: string) => {
+    setGeneratingLink(teamId);
+    try {
+      const { data, error } = await supabase.rpc('generate_invite_link', {
+        p_entity_id: teamId,
+        p_expires_in_days: 7
+      });
 
       if (error) throw error;
 
-      toast.success(`Team "${teamName}" has been deleted`);
-      fetchTeams();
-    } catch (error) {
-      console.error('Error deleting team:', error);
-      toast.error('Failed to delete team');
+      if (data && data.length > 0) {
+        const token = data[0].token;
+        const link = `${window.location.origin}/join/${token}`;
+        setInviteLink(link);
+        navigator.clipboard.writeText(link);
+        setCopiedLink(true);
+        toast.success('Invite link copied to clipboard!');
+        setTimeout(() => setCopiedLink(false), 3000);
+      }
+    } catch (error: any) {
+      console.error('Error generating invite link:', error);
+      toast.error(error.message || 'Failed to generate invite link');
     } finally {
-      setDeletingTeam(null);
+      setGeneratingLink(null);
     }
   };
 
@@ -326,7 +335,7 @@ export function TeamsList() {
                     <Users className="w-4 h-4" />
                     <span>{team.member_count} / {team.max_members} members</span>
                   </div>
-                  
+
                   {/* Team Members List */}
                   <div className="flex flex-wrap gap-2">
                     {team.members.map((member) => (
@@ -336,7 +345,7 @@ export function TeamsList() {
                         className="gap-1.5 py-1 px-2"
                       >
                         <div className={`relative ${member.is_premium ? 'animate-pulse' : ''}`}>
-                          <Avatar 
+                          <Avatar
                             className={`h-5 w-5 ${member.is_premium ? 'ring-2 ring-accent ring-offset-1 ring-offset-background' : ''}`}
                             style={getAvatarBorderStyle(member.user_id)}
                           >
@@ -357,7 +366,7 @@ export function TeamsList() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-2 mt-4">
               <Button
                 size="sm"
@@ -368,6 +377,22 @@ export function TeamsList() {
                 <BarChart3 className="w-4 h-4" />
                 View Stats
               </Button>
+              {team.is_creator && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleGenerateInviteLink(team.id)}
+                  disabled={generatingLink === team.id}
+                  className="gap-1"
+                >
+                  {copiedLink && generatingLink === null ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Link2 className="w-4 h-4" />
+                  )}
+                  {generatingLink === team.id ? 'Generating...' : 'Get Link'}
+                </Button>
+              )}
               {team.is_creator && team.member_count < team.max_members && (
                 <Button
                   size="sm"
@@ -388,7 +413,7 @@ export function TeamsList() {
                   className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
                 >
                   <Trash2 className="w-4 h-4" />
-                  {deletingTeam === team.id ? 'Deleting...' : 'Delete Team'}
+                  {deletingTeam === team.id ? 'Dissolving...' : 'Dissolve Team'}
                 </Button>
               )}
               {!team.is_creator && (
@@ -404,7 +429,7 @@ export function TeamsList() {
                 </Button>
               )}
             </div>
-            
+
             {viewingStatsTeam?.id === team.id && (
               <div className="mt-6 pt-6 border-t">
                 <TeamStatsCard teamId={team.id} teamName={team.name} />
