@@ -87,11 +87,10 @@ serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    // Avoid repeats from last 30 days
+    // Avoid repeats from last 30 days (NON-REPETITION LOGIC)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Note: Use created_at or assignment_date for repeat check
     const { data: recentLogs } = await supabaseClient
       .from('user_quest_log')
       .select('quest_id')
@@ -100,9 +99,13 @@ serve(async (req) => {
 
     const ignoreIds = recentLogs?.map(l => l.quest_id) || [];
 
-    // Select Quest
-    let query = supabaseClient.from('quests').select('id, content, target_archetype');
+    // Select Quest - MUST filter by is_active = true
+    let query = supabaseClient
+      .from('quests')
+      .select('id, content, target_archetype, reflection_prompt')
+      .eq('is_active', true);  // Only active quests
 
+    // Exclude quests used in last 30 days
     if (ignoreIds.length > 0) {
       query = query.not('id', 'in', `(${ignoreIds.join(',')})`);
     }
@@ -116,17 +119,84 @@ serve(async (req) => {
 
     let selectedQuest;
     if (candidates && candidates.length > 0) {
+      // Randomly select from candidates
       selectedQuest = candidates[Math.floor(Math.random() * candidates.length)];
     } else {
-      // Ultimate fallback: get any quest
-      const { data: fallback } = await supabaseClient.from('quests').select('id, content').limit(1).maybeSingle();
-      selectedQuest = fallback;
+      // EXHAUSTION FALLBACK: All quests used in last 30 days
+      console.warn('Quest exhaustion detected (30 days). Expanding to 60 days...');
+
+      // Try 60 days window
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      const { data: recentLogs60 } = await supabaseClient
+        .from('user_quest_log')
+        .select('quest_id')
+        .eq('user_id', user.id)
+        .gte('assignment_date', sixtyDaysAgo.toISOString().split('T')[0]);
+
+      const ignoreIds60 = recentLogs60?.map(l => l.quest_id) || [];
+
+      let fallbackQuery = supabaseClient
+        .from('quests')
+        .select('id, content, target_archetype, reflection_prompt')
+        .eq('is_active', true);
+
+      if (ignoreIds60.length > 0 && ignoreIds60.length < 100) {
+        fallbackQuery = fallbackQuery.not('id', 'in', `(${ignoreIds60.join(',')})`);
+      }
+
+      const { data: fallbackCandidates } = await fallbackQuery.limit(10);
+
+      if (fallbackCandidates && fallbackCandidates.length > 0) {
+        selectedQuest = fallbackCandidates[Math.floor(Math.random() * fallbackCandidates.length)];
+      } else {
+        // Ultimate fallback: get any active quest (pool is too small)
+        console.warn('CRITICAL: Quest pool exhausted. Using any active quest.');
+        const { data: anyQuest } = await supabaseClient
+          .from('quests')
+          .select('id, content, reflection_prompt')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+        selectedQuest = anyQuest;
+      }
     }
 
     if (!selectedQuest) {
-      console.error('CRITICAL: No quests available in database');
+      // ULTIMATE FALLBACK: Use user's most recently completed quest as a fallback
+      console.warn('CRITICAL: No active quests available. Trying user last quest fallback.');
+
+      const { data: lastUserQuest } = await supabaseClient
+        .from('user_quest_log')
+        .select('quest_id, quests(*)')
+        .eq('user_id', user.id)
+        .not('quests', 'is', null)
+        .order('assignment_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastUserQuest?.quests) {
+        selectedQuest = lastUserQuest.quests;
+        console.log('Using last assigned quest as fallback:', selectedQuest.id);
+      } else {
+        // Absolute last resort: get ANY quest from the database
+        const { data: absoluteFallback } = await supabaseClient
+          .from('quests')
+          .select('id, content, reflection_prompt')
+          .limit(1)
+          .maybeSingle();
+
+        if (absoluteFallback) {
+          selectedQuest = absoluteFallback;
+          console.log('Using absolute fallback quest:', selectedQuest.id);
+        }
+      }
+    }
+
+    if (!selectedQuest) {
+      console.error('CRITICAL: No quests available in entire database');
       return new Response(
-        JSON.stringify({ error: 'No quests available' }),
+        JSON.stringify({ error: 'No quests available. Please contact support.' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -164,7 +234,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        quest: finalLog.quests || selectedQuest, // Fallback if join unimplemented but strictly it should join
+        quest: finalLog.quests || selectedQuest,
         log_id: finalLog.id,
         completed: !!finalLog.completed_at,
         date: finalLog.assignment_date

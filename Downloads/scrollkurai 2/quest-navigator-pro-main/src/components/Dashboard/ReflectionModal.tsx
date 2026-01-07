@@ -105,53 +105,36 @@ export const ReflectionModal = ({
 
   const validateReflection = (text: string): string | null => {
     const cleanedText = text.trim().toLowerCase();
-
-    // Check for repeated single character (e.g., "aaaaaaaaaa")
-    const charCounts: Record<string, number> = {};
     const textNoSpaces = cleanedText.replace(/\s/g, '');
-    for (const char of textNoSpaces) {
-      charCounts[char] = (charCounts[char] || 0) + 1;
-    }
-    const totalChars = textNoSpaces.length;
-    const maxCharCount = Math.max(...Object.values(charCounts), 0);
-    if (totalChars > 0 && maxCharCount / totalChars > 0.7) {
-      return "Please write a meaningful reflection, not repeated characters";
-    }
 
-    // Check for repeated words (e.g., "test test test test")
-    const words = cleanedText.split(/\s+/).filter(w => w.length > 0);
-    if (words.length >= 3) {
-      const wordCounts: Record<string, number> = {};
-      for (const word of words) {
-        wordCounts[word] = (wordCounts[word] || 0) + 1;
+    // === ONLY block EXTREME obvious spam ===
+
+    // 1. Check if >85% is same character AND text is very short
+    if (textNoSpaces.length > 0 && textNoSpaces.length < 30) {
+      const charCounts: Record<string, number> = {};
+      for (const char of textNoSpaces) {
+        charCounts[char] = (charCounts[char] || 0) + 1;
       }
-      const maxWordCount = Math.max(...Object.values(wordCounts), 0);
-      if (maxWordCount / words.length > 0.7) {
-        return "Please write a genuine reflection, not repeated words";
+      const maxCharCount = Math.max(...Object.values(charCounts), 0);
+      if (maxCharCount / textNoSpaces.length > 0.85) {
+        return "Please write a meaningful reflection about your experience";
       }
     }
 
-    // Check for keyboard mashing patterns
-    const spamPatterns = [
-      /^(.)\1{10,}$/,                    // Single char repeated 10+ times
-      /(asdf|qwer|zxcv|hjkl){2,}/i,      // Keyboard row mashing
-      /^[a-z]{15,}$/,                    // Only lowercase letters, likely gibberish
-      /^(\w{1,3})\1{5,}$/,               // Short pattern repeated many times
+    // 2. Only block exact keyboard mashing patterns
+    const extremeSpamPatterns = [
+      /^(.)\1{14,}$/,                    // Same char 15+ times
+      /^(asdf|qwer|zxcv){3,}$/i,          // Keyboard row 3+ times
     ];
 
-    for (const pattern of spamPatterns) {
+    for (const pattern of extremeSpamPatterns) {
       if (pattern.test(textNoSpaces)) {
-        return "Please write a thoughtful reflection about your experience";
+        return "Please write a genuine reflection, not random characters";
       }
     }
 
-    // Require at least 3 unique words
-    const uniqueWords = new Set(words.filter(w => w.length > 2));
-    if (uniqueWords.size < 3) {
-      return "Please write a more detailed reflection with at least a few different words";
-    }
-
-    return null; // Valid
+    // All other content is ALLOWED - let users express themselves!
+    return null;
   };
 
   const handleSubmit = async () => {
@@ -204,7 +187,30 @@ export const ReflectionModal = ({
 
       if (error) {
         console.error('Error completing quest:', error);
-        toast.error("Failed to complete quest");
+        // Parse error from function invoke - check both error.message and response body
+        let errorMessage = 'Something went wrong, your streak is safe. Please try again.';
+
+        // Try to extract error from the response context
+        if (error.context?.body) {
+          try {
+            const bodyError = JSON.parse(error.context.body);
+            if (bodyError?.error) {
+              errorMessage = bodyError.error;
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        } else if (error.message && !error.message.includes('FunctionsHttpError')) {
+          errorMessage = error.message;
+        }
+
+        toast.error(errorMessage);
+        return;
+      }
+
+      // Check for error in response data
+      if (data?.error) {
+        toast.error(data.error);
         return;
       }
 
@@ -312,7 +318,7 @@ export const ReflectionModal = ({
       }, 5000);
     } catch (error) {
       console.error('Error:', error);
-      toast.error("Failed to complete quest");
+      toast.error("Something went wrong, your streak is safe. Please try again.");
     } finally {
       setSubmitting(false);
     }

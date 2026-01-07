@@ -1,5 +1,7 @@
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import pkg from '@supabase/supabase-js';
+const { createClient } = pkg;
+type SupabaseClient = ReturnType<typeof createClient>;
 import * as fs from 'fs';
 import * as path from 'path';
 
