@@ -85,18 +85,18 @@ export default function ProfilePage() {
       if (data) {
         setProfile(data);
         form.setValue("username", data.username || "");
-        
+
         // Fetch user avatar
         const { data: avatarData } = await supabase
           .from("user_avatars")
           .select("avatar_preset, border_color")
           .eq("user_id", user.id)
           .maybeSingle();
-        
+
         if (avatarData) {
           setUserAvatar(avatarData);
         }
-        
+
         // Fetch subscription data if premium
         if (data.premium_status) {
           const { data: subData } = await supabase
@@ -107,19 +107,19 @@ export default function ProfilePage() {
             .order("expires_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
+
           if (subData) {
             setSubscription(subData);
           }
         }
-        
+
         // Fetch global rank
         const { data: leaderboardData } = await supabase
           .rpc("get_public_profiles", {
             order_by: "xp",
             limit_count: 1000
           });
-        
+
         if (leaderboardData) {
           const rank = (leaderboardData as LeaderboardEntry[]).findIndex((entry) => entry.id === user.id) + 1;
           setGlobalRank(rank > 0 ? rank : null);
@@ -150,7 +150,7 @@ export default function ProfilePage() {
             console.log('Profile updated:', payload);
             // Refresh profile data when premium_status or other fields change
             fetchProfile();
-            
+
             // Show notification and welcome modal if premium was just activated
             if (payload.new.premium_status && !payload.old.premium_status) {
               toast({
@@ -158,7 +158,7 @@ export default function ProfilePage() {
                 description: "Premium themes and features are now unlocked",
                 duration: 5000,
               });
-              
+
               // Show welcome modal if not seen before
               const hasSeenWelcome = localStorage.getItem('premium_welcome_shown');
               if (!hasSeenWelcome) {
@@ -238,9 +238,9 @@ export default function ProfilePage() {
   return (
     <div className="pb-20 space-y-6">
       {/* Premium Welcome Modal */}
-      <PremiumWelcomeModal 
-        isOpen={showPremiumWelcome} 
-        onClose={() => setShowPremiumWelcome(false)} 
+      <PremiumWelcomeModal
+        isOpen={showPremiumWelcome}
+        onClose={() => setShowPremiumWelcome(false)}
       />
 
       {/* Profile Header */}
@@ -255,89 +255,91 @@ export default function ProfilePage() {
       </div>
 
       {/* Main Stats Card */}
-      <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-primary/20">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Custom Avatar */}
-              <AvatarPreview 
-                preset={userAvatar?.avatar_preset || null}
-                borderColor={userAvatar?.border_color || null}
-                size="lg"
-                username={profile.username || undefined}
-              />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold">{profile.username || "Warrior"}</h2>
-                  {profile.premium_status && (
-                    <Badge className="bg-gold/20 text-gold border-gold/30">
-                      <Crown className="w-3 h-3 mr-1" />
-                      Pro
-                    </Badge>
-                  )}
-                </div>
-                <Badge className="mt-2 bg-primary/20 text-primary border-primary/30">
-                  Level {profile.level}
-                </Badge>
+      <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/50 border-primary/20 overflow-hidden">
+        <div className="space-y-4 sm:space-y-6">
+          {/* Top Row: Avatar + Name + Edit Button */}
+          <div className="flex items-start gap-3 sm:gap-4">
+            {/* Custom Avatar */}
+            <AvatarPreview
+              preset={userAvatar?.avatar_preset || null}
+              borderColor={userAvatar?.border_color || null}
+              size="lg"
+              username={profile.username || undefined}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg sm:text-2xl font-bold truncate">{profile.username || "Warrior"}</h2>
+                {profile.premium_status && (
+                  <Badge className="bg-gold/20 text-gold border-gold/30 shrink-0">
+                    <Crown className="w-3 h-3 mr-1" />
+                    Pro
+                  </Badge>
+                )}
+                {profile.xp >= 1000 && (
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Change Username</DialogTitle>
+                        <DialogDescription>
+                          You've unlocked the ability to change your username! (1000+ XP)
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                          <FormField
+                            control={form.control}
+                            name="username"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>New Username</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter your new username" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <DialogFooter>
+                            <Button type="submit">Save Changes</Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
-              {profile.xp >= 1000 && (
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="ml-2">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Change Username</DialogTitle>
-                      <DialogDescription>
-                        You've unlocked the ability to change your username! (1000+ XP)
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="username"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>New Username</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter your new username" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <DialogFooter>
-                          <Button type="submit">Save Changes</Button>
-                        </DialogFooter>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-bold text-primary">{profile.xp} XP</p>
-              <p className="text-sm text-muted-foreground">Total Experience</p>
+              <Badge className="mt-1 bg-primary/20 text-primary border-primary/30">
+                Level {profile.level}
+              </Badge>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          {/* XP Display - Full width on mobile */}
+          <div className="bg-primary/10 rounded-lg p-3 text-center">
+            <p className="text-2xl sm:text-3xl font-bold text-primary">{profile.xp} XP</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total Experience</p>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1 sm:space-y-2">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-accent" />
-                <p className="text-sm text-muted-foreground">Current Streak</p>
+                <TrendingUp className="w-4 h-4 text-accent shrink-0" />
+                <p className="text-xs sm:text-sm text-muted-foreground">Current Streak</p>
               </div>
-              <p className="text-2xl font-bold">{profile.streak} days</p>
+              <p className="text-xl sm:text-2xl font-bold">{profile.streak} days</p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1 sm:space-y-2">
               <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-gold" />
-                <p className="text-sm text-muted-foreground">Quests Completed</p>
+                <Award className="w-4 h-4 text-gold shrink-0" />
+                <p className="text-xs sm:text-sm text-muted-foreground">Quests Completed</p>
               </div>
-              <p className="text-2xl font-bold">{profile.total_quests_completed}</p>
+              <p className="text-xl sm:text-2xl font-bold">{profile.total_quests_completed}</p>
             </div>
           </div>
         </div>
@@ -396,7 +398,7 @@ export default function ProfilePage() {
                   <span className="text-sm text-muted-foreground">Days Remaining</span>
                   {(() => {
                     const daysLeft = Math.ceil(
-                      (new Date(subscription.expires_at!).getTime() - new Date().getTime()) / 
+                      (new Date(subscription.expires_at!).getTime() - new Date().getTime()) /
                       (1000 * 60 * 60 * 24)
                     );
                     const isExpiringSoon = daysLeft <= 7;
@@ -408,18 +410,18 @@ export default function ProfilePage() {
                     );
                   })()}
                 </div>
-                
+
                 {/* Visual Countdown */}
                 {(() => {
                   const daysLeft = Math.ceil(
-                    (new Date(subscription.expires_at!).getTime() - new Date().getTime()) / 
+                    (new Date(subscription.expires_at!).getTime() - new Date().getTime()) /
                     (1000 * 60 * 60 * 24)
                   );
                   const maxDays = 365; // For yearly plans
                   const progress = Math.min(Math.max((daysLeft / maxDays) * 100, 0), 100);
                   const isExpiringSoon = daysLeft <= 7;
                   const isUrgent = daysLeft <= 3;
-                  
+
                   return (
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -427,25 +429,23 @@ export default function ProfilePage() {
                         <span>{daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            isUrgent 
-                              ? 'bg-destructive' 
-                              : isExpiringSoon 
-                                ? 'bg-yellow-500' 
-                                : 'bg-gradient-to-r from-gold to-accent'
-                          }`}
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${isUrgent
+                            ? 'bg-destructive'
+                            : isExpiringSoon
+                              ? 'bg-yellow-500'
+                              : 'bg-gradient-to-r from-gold to-accent'
+                            }`}
                           style={{ width: `${progress}%` }}
                         />
                       </div>
-                      
+
                       {isExpiringSoon && daysLeft > 0 && (
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${
-                          isUrgent ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-500'
-                        }`}>
+                        <div className={`flex items-center gap-2 p-2 rounded-lg ${isUrgent ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-500'
+                          }`}>
                           <Clock className="w-4 h-4" />
                           <span className="text-xs font-medium">
-                            {isUrgent 
+                            {isUrgent
                               ? `⚠️ Expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}! Renew now to keep your benefits.`
                               : `Your subscription expires soon. Renew to continue your journey.`
                             }
@@ -455,10 +455,10 @@ export default function ProfilePage() {
                     </div>
                   );
                 })()}
-                
+
                 {(() => {
                   const daysLeft = Math.ceil(
-                    (new Date(subscription.expires_at!).getTime() - new Date().getTime()) / 
+                    (new Date(subscription.expires_at!).getTime() - new Date().getTime()) /
                     (1000 * 60 * 60 * 24)
                   );
                   if (daysLeft <= 7 && daysLeft > 0) {
@@ -531,8 +531,8 @@ export default function ProfilePage() {
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Average XP per Quest</span>
             <span className="text-sm font-medium">
-              {profile.total_quests_completed > 0 
-                ? Math.round(profile.xp / profile.total_quests_completed) 
+              {profile.total_quests_completed > 0
+                ? Math.round(profile.xp / profile.total_quests_completed)
                 : 0} XP
             </span>
           </div>
@@ -541,8 +541,8 @@ export default function ProfilePage() {
 
       {/* Avatar Customizer */}
       <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
-        <AvatarCustomizer 
-          isPremium={profile.premium_status} 
+        <AvatarCustomizer
+          isPremium={profile.premium_status}
           onAvatarChange={fetchProfile}
         />
       </Card>
@@ -556,9 +556,9 @@ export default function ProfilePage() {
       {/* Admin Dashboard - Only visible to admins */}
       {isAdmin && (
         <Card className="p-6 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20">
-          <Button 
-            onClick={() => navigate("/admin")} 
-            variant="outline" 
+          <Button
+            onClick={() => navigate("/admin")}
+            variant="outline"
             className="w-full border-purple-500/30 hover:bg-purple-500/10"
             size="lg"
           >
@@ -570,9 +570,9 @@ export default function ProfilePage() {
 
       {/* Payment History */}
       <Card className="p-6 bg-card/50 border-primary/20">
-        <Button 
-          onClick={() => navigate("/payment-history")} 
-          variant="outline" 
+        <Button
+          onClick={() => navigate("/payment-history")}
+          variant="outline"
           className="w-full"
           size="lg"
         >
@@ -583,9 +583,9 @@ export default function ProfilePage() {
 
       {/* Logout Button */}
       <Card className="p-6 bg-card/50 border-primary/20">
-        <Button 
-          onClick={handleSignOut} 
-          variant="destructive" 
+        <Button
+          onClick={handleSignOut}
+          variant="destructive"
           className="w-full"
           size="lg"
         >
