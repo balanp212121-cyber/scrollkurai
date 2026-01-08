@@ -254,18 +254,71 @@ export default function FriendsPage() {
     }
   };
 
-  const handleAcceptRequest = async (requestId: string) => {
+  const handleAcceptRequest = async (requestId: string, senderId?: string) => {
     try {
-      const { error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please login to accept friend requests');
+        return;
+      }
+
+      // Get the request to find the sender
+      const { data: requestData } = await supabase
+        .from('friends')
+        .select('user_id, friend_id')
+        .eq('id', requestId)
+        .single();
+
+      if (!requestData) {
+        toast.error('Friend request not found');
+        return;
+      }
+
+      const friendUserId = requestData.user_id; // The person who sent the request
+
+      // 1. Update original request to accepted
+      const { error: updateError } = await supabase
         .from('friends')
         .update({ status: 'accepted' })
         .eq('id', requestId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      toast.success('Friend request accepted!');
+      // 2. Create reciprocal friendship row (current user → sender)
+      // This makes the friendship bidirectional
+      const { error: insertError } = await supabase
+        .from('friends')
+        .insert({
+          user_id: user.id,
+          friend_id: friendUserId,
+          status: 'accepted'
+        });
+
+      // Ignore duplicate key error (friendship might already exist from previous accept)
+      if (insertError && insertError.code !== '23505') {
+        console.error('Error creating reciprocal friendship:', insertError);
+      }
+
+      // 3. Instant UI update - move from pending to friends
+      const acceptedRequest = pendingRequests.find(r => r.id === requestId);
+      if (acceptedRequest) {
+        setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+        setFriends(prev => [...prev, {
+          ...acceptedRequest,
+          status: 'accepted',
+          friend_id: friendUserId,
+          friend_profile: acceptedRequest.friend_profile
+        }]);
+      }
+
+      toast.success('Friend request accepted! 🎉', {
+        description: 'You can now add them to teams and duos'
+      });
+
+      // Background refresh to sync with DB
       fetchFriends();
     } catch (error) {
+      console.error('Error accepting request:', error);
       toast.error('Failed to accept request');
     }
   };

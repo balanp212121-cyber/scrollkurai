@@ -1,0 +1,260 @@
+-- =============================================
+-- CANONICAL POWER-UP SYSTEM MIGRATION (PART 2: RPCs)
+-- =============================================
+
+-- 4. Canonical RPC: use_powerup_atomic
+CREATE OR REPLACE FUNCTION public.use_powerup_atomic(
+  p_user_id UUID,
+  p_powerup_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_powerup RECORD;
+  v_existing RECORD;
+  v_now TIMESTAMPTZ := NOW();
+  v_expires_at TIMESTAMPTZ;
+  v_cooldown_until TIMESTAMPTZ;
+BEGIN
+  -- 1. GET POWERUP CONFIG
+  SELECT * INTO v_powerup
+  FROM public.strategic_powerups
+  WHERE id = p_powerup_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Power-up not found',
+      'error_code', 'POWERUP_NOT_FOUND'
+    );
+  END IF;
+
+  -- 2. CALCULATE TIMES
+  v_expires_at := v_now + (v_powerup.duration_minutes || ' minutes')::INTERVAL;
+  v_cooldown_until := v_now + (v_powerup.cooldown_minutes || ' minutes')::INTERVAL;
+
+  -- 3. CHECK EXISTING STATE (Row Locking)
+  SELECT * INTO v_existing
+  FROM public.user_strategic_powerups
+  WHERE user_id = p_user_id AND powerup_id = p_powerup_id
+  FOR UPDATE;
+
+  IF FOUND THEN
+    -- CASE A: ALREADY ACTIVE (Idempotent Success)
+    IF v_existing.expires_at > v_now THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'idempotent', true,
+        'status', 'active',
+        'expires_at', v_existing.expires_at,
+        'powerup', jsonb_build_object(
+            'name', v_powerup.name,
+            'effect', v_powerup.effect
+        )
+      );
+    END IF;
+
+    -- CASE B: COOLDOWN ACTIVE (Error)
+    IF v_existing.cooldown_until > v_now THEN
+       RETURN jsonb_build_object(
+        'success', false,
+        'error', 'Power-up is on cooldown',
+        'error_code', 'COOLDOWN_ACTIVE',
+        'available_at', v_existing.cooldown_until
+      );
+    END IF;
+
+    -- CASE C: EXPIRED & COOLDOWN DONE -> REACTIVATE (Update)
+    UPDATE public.user_strategic_powerups
+    SET
+      activated_at = v_now,
+      expires_at = v_expires_at,
+      cooldown_until = v_cooldown_until
+    WHERE id = v_existing.id;
+
+  ELSE
+    -- CASE D: NEW ACTIVATION (Insert)
+    INSERT INTO public.user_strategic_powerups (
+      user_id, powerup_id, activated_at, expires_at, cooldown_until
+    ) VALUES (
+      p_user_id, p_powerup_id, v_now, v_expires_at, v_cooldown_until
+    );
+  END IF;
+
+  -- 4. EMIT DOMAIN EVENT
+  INSERT INTO public.domain_events (event_type, user_id, entity_type, entity_id, payload)
+  VALUES (
+    'powerup_activated',
+    p_user_id,
+    'strategic_powerup',
+    gen_random_uuid(),
+    jsonb_build_object(
+      'powerup_id', p_powerup_id,
+      'activated_at', v_now,
+      'expires_at', v_expires_at,
+      'cooldown_minutes', v_powerup.cooldown_minutes
+    )
+  );
+
+  -- 5. RETURN SUCCESS
+  RETURN jsonb_build_object(
+    'success', true,
+    'idempotent', false,
+    'status', 'activated',
+    'expires_at', v_expires_at,
+    'powerup', jsonb_build_object(
+         'name', v_powerup.name,
+         'effect', v_powerup.effect
+    )
+  );
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Transactions failed',
+      'error_code', 'INTERNAL_ERROR',
+      'details', SQLERRM
+    );
+END;
+$$;
+
+
+-- 5. Canonical RPC: complete_quest_atomic (Updated for new Power-Up Model)
+CREATE OR REPLACE FUNCTION public.complete_quest_atomic(
+    p_user_id UUID,
+    p_log_id UUID,
+    p_reflection_text TEXT,
+    p_is_golden_quest BOOLEAN DEFAULT FALSE
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_quest_log RECORD;
+    v_profile RECORD;
+    v_now TIMESTAMPTZ := NOW();
+    v_today DATE := CURRENT_DATE;
+    v_yesterday DATE := CURRENT_DATE - INTERVAL '1 day';
+    v_new_streak INT;
+    v_streak_lost_at TIMESTAMPTZ := NULL;
+    v_base_xp INT := 250;
+    v_streak_bonus INT;
+    v_total_xp INT;
+    v_new_total_xp INT;
+    v_new_level INT;
+
+    -- Power-up effects
+    v_xp_multiplier NUMERIC := 1.0;
+    v_active_powerup_names TEXT[] := ARRAY[]::TEXT[];
+    v_active_powerup RECORD;
+BEGIN
+    -- 1. LOCK and VERIFY QUEST LOG
+    SELECT * INTO v_quest_log
+    FROM public.user_quest_log
+    WHERE id = p_log_id AND user_id = p_user_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Quest not found', 'error_code', 'QUEST_NOT_FOUND');
+    END IF;
+
+    IF v_quest_log.status = 'completed' THEN
+        RETURN jsonb_build_object('success', true, 'idempotent', true, 'message', 'Already completed');
+    END IF;
+
+    IF v_quest_log.status != 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Quest not accepted', 'error_code', 'QUEST_NOT_ACTIVE');
+    END IF;
+
+    -- 2. GET PROFILE (Lock)
+    SELECT * INTO v_profile FROM public.profiles WHERE id = p_user_id FOR UPDATE;
+    IF NOT FOUND THEN
+         RETURN jsonb_build_object('success', false, 'error', 'Profile not found', 'error_code', 'PROFILE_NOT_FOUND');
+    END IF;
+
+    -- 3. APPLY ACTIVE POWER-UPS (Canonical Logic)
+    -- Fetch active powerups from strict state table
+    FOR v_active_powerup IN
+        SELECT p.name, p.effect
+        FROM public.user_strategic_powerups usp
+        JOIN public.strategic_powerups p ON usp.powerup_id = p.id
+        WHERE usp.user_id = p_user_id AND usp.expires_at > v_now
+    LOOP
+        -- Accumulate names
+        v_active_powerup_names := array_append(v_active_powerup_names, v_active_powerup.name);
+
+        -- Apply XP Multiplier if present
+        IF v_active_powerup.effect->>'xp_multiplier' IS NOT NULL THEN
+            v_xp_multiplier := v_xp_multiplier * (v_active_powerup.effect->>'xp_multiplier')::NUMERIC;
+        END IF;
+    END LOOP;
+
+    -- 4. CALCULATE STREAK (Simplified Logic)
+    IF v_profile.last_quest_date = v_today THEN
+         v_new_streak := v_profile.streak;
+    ELSIF v_profile.last_quest_date = v_yesterday THEN
+         v_new_streak := v_profile.streak + 1;
+    ELSE
+         -- Check if streak freeze or recovery powerup is active?
+         -- For now, reset to 1 unless profile has freeze (legacy)
+         -- Ideally streak freeze should also be a powerup in canonical model
+         IF v_profile.streak > 0 THEN v_streak_lost_at := v_now; END IF;
+         v_new_streak := 1;
+    END IF;
+
+    -- 5. CALCULATE XP
+    v_streak_bonus := v_new_streak * 10;
+    v_total_xp := (v_base_xp + v_streak_bonus);
+
+    -- Apply Power-Up Multiplier
+    v_total_xp := FLOOR(v_total_xp * v_xp_multiplier);
+
+    -- Apply Golden Quest Multiplier
+    IF p_is_golden_quest THEN
+        v_total_xp := v_total_xp * 3;
+    END IF;
+
+    v_new_total_xp := v_profile.xp + v_total_xp;
+    v_new_level := FLOOR(v_new_total_xp / 1000) + 1;
+
+    -- 6. UPDATE QUEST LOG
+    UPDATE public.user_quest_log
+    SET status = 'completed', completed_at = v_now, reflection_text = p_reflection_text, xp_awarded = v_total_xp
+    WHERE id = p_log_id;
+
+    -- 7. UPDATE PROFILE
+    UPDATE public.profiles
+    SET xp = v_new_total_xp, level = v_new_level, streak = v_new_streak, last_quest_date = v_today, total_quests_completed = total_quests_completed + 1
+    WHERE id = p_user_id;
+
+    -- 8. EMIT EVENT
+    INSERT INTO public.domain_events (event_type, user_id, entity_type, entity_id, payload)
+    VALUES ('quest_completed', p_user_id, 'user_quest_log', p_log_id, jsonb_build_object(
+        'xp', v_total_xp,
+        'streak', v_new_streak,
+        'active_powerups', v_active_powerup_names,
+        'multiplier', v_xp_multiplier
+    ));
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'xp_awarded', v_total_xp,
+        'streak', v_new_streak,
+        'active_powerups', v_active_powerup_names
+    );
+
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Completion failed', 'error_code', 'INTERNAL_ERROR', 'details', SQLERRM);
+END;
+$$;
+
+
+-- 6. Grant permissions
+GRANT EXECUTE ON FUNCTION public.use_powerup_atomic TO authenticated;
+GRANT EXECUTE ON FUNCTION public.use_powerup_atomic TO service_role;
+GRANT EXECUTE ON FUNCTION public.complete_quest_atomic TO authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_quest_atomic TO service_role;

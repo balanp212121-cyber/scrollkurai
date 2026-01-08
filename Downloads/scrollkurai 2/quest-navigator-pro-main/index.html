@@ -31,6 +31,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
+  <!-- Zoho PageSense Analytics (READ-ONLY, FAIL-SAFE) -->
+  <!-- This script is for UI analytics and A/B testing ONLY -->
+  <!-- It NEVER touches: Quest logic, Edge Functions, Power-ups, or Backend state -->
+  <script>
+    // Fail-safe: Initialize pagesense array before script loads
+    window.pagesense = window.pagesense || [];
+  </script>
+  <script src="https://cdn-in.pagesense.io/js/codexe/0bc98b9e22a141a29fe0fe5e05dc7a5f.js" async
+    onerror="console.debug('[PageSense] CDN unavailable - app continues normally')">
+    </script>
+
+
   <!-- PWA Meta Tags -->
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />

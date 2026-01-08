@@ -23,6 +23,7 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
   const [quest, setQuest] = useState<Quest | null>(null);
   const [logId, setLogId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [status, setStatus] = useState<'pending' | 'active' | 'completed'>('active');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [isGolden, setIsGolden] = useState(false);
@@ -58,11 +59,15 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
 
       setQuest(data.quest);
       setLogId(data.log_id);
-      setCompleted(data.completed);
+      // Backend now provides explicit status, use it to determine UI state
+      // If status is missing (old API), infer from completed flag
+      const currentStatus = data.status || (data.completed ? 'completed' : 'active');
+      setStatus(currentStatus);
+      setCompleted(currentStatus === 'completed');
 
       // Check if this is a golden quest
       const golden = await isGoldenQuest(session.user.id);
-      setIsGolden(golden && !data.completed);
+      setIsGolden(golden && currentStatus !== 'completed');
 
       // Check for active XP booster
       const { data: profile } = await supabase
@@ -81,6 +86,33 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
       toast.error("Failed to load quest");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handeAcceptQuest = async () => {
+    if (!logId) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      toast.loading("Accepting quest...");
+
+      const { data, error } = await supabase.functions.invoke('accept-quest', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { log_id: logId }
+      });
+
+      if (error || !data.success) {
+        throw new Error(data?.error || error?.message || 'Failed to accept');
+      }
+
+      toast.dismiss();
+      toast.success("Quest Accepted! Good luck.");
+      setStatus('active');
+    } catch (error: any) {
+      toast.dismiss();
+      console.error('Accept error:', error);
+      toast.error(error.message || "Failed to accept quest");
     }
   };
 
@@ -120,6 +152,10 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
     );
   }
 
+  // Determine card style based on status
+  const isPending = status === 'pending';
+  const isActive = status === 'active';
+
   return (
     <>
       <Card className={`bg-gradient-to-br transition-all duration-300 ${completed
@@ -136,7 +172,7 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
               ) : (
                 <Sparkles className={`w-5 h-5 ${completed ? 'text-accent' : 'text-primary'}`} />
               )}
-              {completed ? "Quest Complete!" : isGolden ? "✨ Golden Quest! (3x XP)" : "Today's Quest"}
+              {completed ? "Quest Complete!" : isPending ? "New Quest Available" : isGolden ? "✨ Golden Quest! (3x XP)" : "Today's Quest"}
             </CardTitle>
             {quest.target_archetype && (
               <Badge variant="secondary" className="text-xs">
@@ -164,15 +200,32 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
         <CardContent className="space-y-4">
           <div className={`p-4 rounded-lg border ${isGolden
             ? 'bg-amber-500/5 border-amber-500/30'
-            : 'bg-muted/50 border-border'
+            : isPending
+              ? 'bg-muted/30 border-dashed border-border'
+              : 'bg-muted/50 border-border'
             }`}>
-            <p className="text-lg font-medium">{quest.content}</p>
+            <p className={`text-lg font-medium ${isPending ? 'blur-sm select-none' : ''}`}>
+              {isPending ? "Quest content hidden until accepted..." : quest.content}
+            </p>
           </div>
 
           {completed ? (
             <div className="flex items-center gap-2 text-accent">
               <CheckCircle2 className="w-5 h-5" />
               <span className="font-medium">Completed today!</span>
+            </div>
+          ) : isPending ? (
+            <div className="space-y-2">
+              <Button
+                onClick={handeAcceptQuest}
+                className="w-full bg-primary hover:bg-primary/90"
+                size="lg"
+              >
+                Accept Quest
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Accepting this quest starts your daily challenge.
+              </p>
             </div>
           ) : (
             <Button
@@ -196,7 +249,7 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
         </CardContent>
       </Card>
 
-      {!completed && quest && logId && (
+      {!completed && isActive && quest && logId && (
         <ReflectionModal
           open={modalOpen}
           onOpenChange={setModalOpen}
@@ -206,6 +259,7 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
           onComplete={() => {
             setCompleted(true);
             setIsGolden(false);
+            setStatus('completed');
             onQuestComplete();
           }}
         />

@@ -9,15 +9,19 @@ export const OnboardingWrapper = ({ children }: OnboardingWrapperProps) => {
   const { needsOnboarding, loading, completeOnboarding } = useOnboarding();
 
   if (loading) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-primary text-xl">Loading...</div>
+      </div>
+    );
   }
 
   return (
     <>
       {children}
-      <OnboardingModal 
-        isOpen={needsOnboarding} 
-        onComplete={completeOnboarding} 
+      <OnboardingModal
+        isOpen={needsOnboarding}
+        onComplete={completeOnboarding}
       />
     </>
   );

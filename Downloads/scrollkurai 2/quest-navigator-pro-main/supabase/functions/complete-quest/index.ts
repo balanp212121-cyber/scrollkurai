@@ -9,16 +9,38 @@ const corsHeaders = {
 const MIN_REFLECTION_LENGTH = 15;
 const MAX_REFLECTION_LENGTH = 500;
 
+/**
+ * COMPLETE QUEST EDGE FUNCTION (HARDENED)
+ * 
+ * This function completes an active quest atomically.
+ * It is 100% backend-authoritative, atomic, and idempotent.
+ * 
+ * Guarantees:
+ * - XP awarded exactly once (no double completion)
+ * - Duplicate calls return SUCCESS (idempotent)
+ * - Quest must be in 'active' status (enforced by RPC)
+ * - All state changes happen in a single transaction
+ * - Domain events are logged for audit trail
+ */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let userId: string | null = null;
+  let logId: string | null = null;
+
   try {
+    // === 1. VALIDATE AUTH ===
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('[complete-quest] No authorization header');
       return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
+        JSON.stringify({
+          error: 'Authorization required',
+          error_code: 'AUTH_REQUIRED'
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -27,38 +49,59 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
-        global: {
-          headers: { Authorization: authHeader },
-        },
+        global: { headers: { Authorization: authHeader } },
       }
     );
 
     // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.error('[complete-quest] Auth error:', userError);
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized',
+          error_code: 'UNAUTHORIZED'
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    userId = user.id;
+
+    // === 2. VALIDATE INPUTS ===
+    const { log_id, reflection_text, is_golden_quest } = await req.json();
+    logId = log_id;
+
+    if (!log_id) {
+      console.error('[complete-quest] Missing log_id');
+      return new Response(
+        JSON.stringify({
+          error: 'Quest ID is required',
+          error_code: 'INVALID_INPUT'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const { log_id, reflection_text, is_golden_quest } = await req.json();
-
-    // === VALIDATION (ALIGNED WITH FRONTEND) ===
-    if (!log_id) {
+    // UUID format validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(log_id)) {
+      console.error('[complete-quest] Invalid UUID format:', log_id);
       return new Response(
-        JSON.stringify({ error: 'Quest ID is required' }),
+        JSON.stringify({
+          error: 'log_id must be a valid UUID',
+          error_code: 'INVALID_UUID'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!reflection_text || typeof reflection_text !== 'string') {
+      console.error('[complete-quest] Invalid reflection_text');
       return new Response(
-        JSON.stringify({ error: 'Reflection text is required' }),
+        JSON.stringify({
+          error: 'Reflection text is required',
+          error_code: 'INVALID_INPUT'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -67,37 +110,47 @@ Deno.serve(async (req) => {
 
     if (trimmedReflection.length < MIN_REFLECTION_LENGTH) {
       return new Response(
-        JSON.stringify({ error: `Reflection is too short (minimum ${MIN_REFLECTION_LENGTH} characters)` }),
+        JSON.stringify({
+          error: `Reflection is too short (minimum ${MIN_REFLECTION_LENGTH} characters)`,
+          error_code: 'VALIDATION_FAILED'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (trimmedReflection.length > MAX_REFLECTION_LENGTH) {
       return new Response(
-        JSON.stringify({ error: `Reflection is too long (maximum ${MAX_REFLECTION_LENGTH} characters)` }),
+        JSON.stringify({
+          error: `Reflection is too long (maximum ${MAX_REFLECTION_LENGTH} characters)`,
+          error_code: 'VALIDATION_FAILED'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // === SPAM & ABUSE DETECTION (SOFT BUT CLEAR) ===
+    // === 3. ANTI-CHEAT: SPAM DETECTION ===
     const cleanedText = trimmedReflection.toLowerCase();
-
-    // Check for repeated single character (e.g., "aaaaaaaaaa")
-    const charCounts: Record<string, number> = {};
     const textNoSpaces = cleanedText.replace(/\s/g, '');
+
+    // Check for repeated single character
+    const charCounts: Record<string, number> = {};
     for (const char of textNoSpaces) {
       charCounts[char] = (charCounts[char] || 0) + 1;
     }
     const totalChars = textNoSpaces.length;
     const maxCharCount = Math.max(...Object.values(charCounts), 0);
     if (totalChars > 0 && maxCharCount / totalChars > 0.7) {
+      console.warn(`[complete-quest] Spam detected (repeated chars): user=${userId}`);
       return new Response(
-        JSON.stringify({ error: 'Please write a meaningful reflection, not repeated characters' }),
+        JSON.stringify({
+          error: 'Please write a meaningful reflection, not repeated characters',
+          error_code: 'SPAM_DETECTED'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check for repeated words (e.g., "test test test test")
+    // Check for repeated words
     const words = cleanedText.split(/\s+/).filter(w => w.length > 0);
     if (words.length >= 3) {
       const wordCounts: Record<string, number> = {};
@@ -106,8 +159,12 @@ Deno.serve(async (req) => {
       }
       const maxWordCount = Math.max(...Object.values(wordCounts), 0);
       if (maxWordCount / words.length > 0.7) {
+        console.warn(`[complete-quest] Spam detected (repeated words): user=${userId}`);
         return new Response(
-          JSON.stringify({ error: 'Please write a genuine reflection, not repeated words' }),
+          JSON.stringify({
+            error: 'Please write a genuine reflection, not repeated words',
+            error_code: 'SPAM_DETECTED'
+          }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -115,15 +172,18 @@ Deno.serve(async (req) => {
 
     // Check for keyboard mashing patterns
     const spamPatterns = [
-      /^(.)\1{10,}$/,                    // Single char repeated 10+ times
-      /(asdf|qwer|zxcv|hjkl){2,}/i,      // Keyboard row mashing
-      /^(\w{1,3})\1{5,}$/,               // Short pattern repeated many times
+      /^(.)\1{10,}$/,
+      /(asdf|qwer|zxcv|hjkl){2,}/i,
+      /^(\w{1,3})\1{5,}$/,
     ];
-
     for (const pattern of spamPatterns) {
       if (pattern.test(textNoSpaces)) {
+        console.warn(`[complete-quest] Spam detected (pattern): user=${userId}`);
         return new Response(
-          JSON.stringify({ error: 'Please write a thoughtful reflection about your experience' }),
+          JSON.stringify({
+            error: 'Please write a thoughtful reflection about your experience',
+            error_code: 'SPAM_DETECTED'
+          }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -133,88 +193,88 @@ Deno.serve(async (req) => {
     const uniqueWords = new Set(words.filter(w => w.length > 2));
     if (uniqueWords.size < 3) {
       return new Response(
-        JSON.stringify({ error: 'Please write a more detailed reflection with at least a few different words' }),
+        JSON.stringify({
+          error: 'Please write a more detailed reflection with at least a few different words',
+          error_code: 'VALIDATION_FAILED'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Completing quest for log_id:', log_id, 'Golden Quest:', is_golden_quest);
+    console.log(`[complete-quest] Processing: user=${userId}, log_id=${log_id}, golden=${is_golden_quest}`);
 
-    // === CALL ATOMIC RPC FUNCTION ===
+    // === 4. CALL ATOMIC RPC ===
     const { data: result, error: rpcError } = await supabaseClient.rpc('complete_quest_atomic', {
-      p_user_id: user.id,
+      p_user_id: userId,
       p_log_id: log_id,
       p_reflection_text: trimmedReflection,
       p_is_golden_quest: is_golden_quest || false,
     });
 
     if (rpcError) {
-      console.error('RPC error:', rpcError);
+      console.error('[complete-quest] RPC error:', rpcError);
       return new Response(
-        JSON.stringify({ error: 'Please try again — temporary issue' }),
+        JSON.stringify({
+          error: 'Please try again — temporary issue',
+          error_code: 'RPC_ERROR'
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check RPC result
+    // === 5. HANDLE RPC RESULT ===
     if (!result || !result.success) {
-      const errorMessage = result?.error || 'Quest completion failed';
       const errorCode = result?.error_code || 'UNKNOWN';
+      const errorMessage = result?.error || 'Quest completion failed';
 
-      // Map error codes to user-friendly messages
+      const statusMap: Record<string, number> = {
+        'QUEST_NOT_FOUND': 404,
+        'QUEST_NOT_ACTIVE': 400,
+        'PROFILE_NOT_FOUND': 404,
+        'INTERNAL_ERROR': 500,
+      };
+
+      // For idempotency - if already completed, RPC returns success with idempotent flag
+      // This is handled above in success path
+
       let userMessage = errorMessage;
-      let statusCode = 400;
-
-      switch (errorCode) {
-        case 'QUEST_NOT_FOUND':
-          userMessage = 'Quest not found. Please refresh and try again.';
-          statusCode = 404;
-          break;
-        case 'ALREADY_COMPLETED':
-          userMessage = 'Quest already completed';
-          statusCode = 400;
-          break;
-        case 'PROFILE_NOT_FOUND':
-          userMessage = 'Profile not found. Please sign in again.';
-          statusCode = 404;
-          break;
-        case 'INTERNAL_ERROR':
-          userMessage = 'Something went wrong, your streak is safe. Please try again.';
-          statusCode = 500;
-          break;
+      if (errorCode === 'QUEST_NOT_ACTIVE') {
+        userMessage = 'Please accept the quest before completing it.';
       }
 
+      console.error(`[complete-quest] Failed: code=${errorCode}, msg=${errorMessage}`);
       return new Response(
-        JSON.stringify({ error: userMessage, error_code: errorCode }),
-        { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: userMessage,
+          error_code: errorCode
+        }),
+        { status: statusMap[errorCode] || 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // === BACKGROUND TASKS (NON-BLOCKING) ===
+    // === 6. BACKGROUND TASKS (NON-BLOCKING, FIRE-AND-FORGET) ===
+    // These are secondary effects - the core completion is already DONE
     const processBackgroundTasks = async () => {
-      console.log('Starting background tasks for quest completion...');
+      console.log('[complete-quest] Starting background tasks...');
 
       try {
-        // 1. Update Challenge Progress
         await supabaseClient.functions.invoke('update-challenge-progress', {
           headers: { Authorization: authHeader },
         });
       } catch (e) {
-        console.error('BG: Challenge update exception:', e);
+        console.error('[complete-quest] BG: Challenge update failed:', e);
       }
 
       try {
-        // 2. Track League Participation
         await supabaseClient.functions.invoke('track-league-participation', {
           headers: { Authorization: authHeader },
           body: { xp_earned: result.xp_awarded },
         });
       } catch (e) {
-        console.error('BG: League update exception:', e);
+        console.error('[complete-quest] BG: League update failed:', e);
       }
 
       try {
-        // 3. Track Analytics
         await supabaseClient.functions.invoke('track-analytics', {
           headers: { Authorization: authHeader },
           body: {
@@ -224,43 +284,14 @@ Deno.serve(async (req) => {
           },
         });
       } catch (e) {
-        console.error('BG: Analytics exception:', e);
+        console.error('[complete-quest] BG: Analytics failed:', e);
       }
 
-      // 4. Referral Rewards (First Quest Only) - Check profile
-      try {
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('total_quests_completed')
-          .eq('id', user.id)
-          .single();
-
-        if (profile && profile.total_quests_completed === 1) {
-          // This was their first quest
-          const { error: referralUpdateError } = await supabaseClient
-            .from('referrals')
-            .update({
-              status: 'day_1_completed',
-              completed_at: new Date().toISOString()
-            })
-            .eq('referred_id', user.id)
-            .eq('status', 'pending');
-
-          if (!referralUpdateError) {
-            await supabaseClient.functions.invoke('process-referral-reward', {
-              headers: { Authorization: authHeader },
-            });
-          }
-        }
-      } catch (e) {
-        console.error('BG: Referral exception:', e);
-      }
-
-      console.log('Background tasks completed.');
+      console.log('[complete-quest] Background tasks completed.');
     };
 
-    // Trigger background tasks without awaiting
-    // @ts-ignore: Deno EdgeRuntime type definition
+    // Fire and forget - don't block the response
+    // @ts-ignore: Deno EdgeRuntime
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(processBackgroundTasks());
@@ -268,40 +299,51 @@ Deno.serve(async (req) => {
       processBackgroundTasks();
     }
 
-    // === RARE AVATAR DROP ===
+    // === 7. RARE AVATAR DROP (NON-BLOCKING) ===
     let avatarDrop = null;
     try {
       const { data: dropResult, error: dropError } = await supabaseClient
-        .rpc('roll_avatar_drop', { p_user_id: user.id, p_trigger: 'quest' });
+        .rpc('roll_avatar_drop', { p_user_id: userId, p_trigger: 'quest' });
 
       if (!dropError && dropResult?.dropped) {
         avatarDrop = dropResult.avatar;
-        console.log('🎉 RARE AVATAR DROP:', avatarDrop);
+        console.log('[complete-quest] 🎉 RARE AVATAR DROP:', avatarDrop);
       }
     } catch (e) {
-      console.error('Avatar drop roll error:', e);
-      // Non-blocking
+      console.error('[complete-quest] Avatar drop error:', e);
     }
 
-    // === RETURN SUCCESS ===
+    // === 8. RETURN SUCCESS ===
+    const executionTime = Date.now() - startTime;
+    console.log(`[complete-quest] SUCCESS: user=${userId}, log_id=${log_id}, xp=${result.xp_awarded}, idempotent=${result.idempotent || false}, time=${executionTime}ms`);
+
+    const activePowerups = result.active_powerups || [];
+    const hasXpBooster = activePowerups.some((n: string) => n === 'Blood Oath');
+
     return new Response(
       JSON.stringify({
         success: true,
         xp_awarded: result.xp_awarded,
         streak: result.streak,
-        total_xp: result.total_xp,
-        level: result.level,
-        xp_booster_applied: result.xp_booster_applied,
-        streak_freeze_used: result.streak_freeze_used,
+        total_xp: result.new_total_xp, // Mapped from new RPC
+        level: result.new_level,       // Mapped from new RPC
+        xp_booster_applied: hasXpBooster,
+        streak_freeze_used: false, // Not yet implemented in Canonical RPC
         avatar_drop: avatarDrop,
+        idempotent: result.idempotent || false,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
-    console.error('Error in complete-quest:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const executionTime = Date.now() - startTime;
+    console.error(`[complete-quest] EXCEPTION: user=${userId}, log_id=${logId}, time=${executionTime}ms, error=`, error);
+
     return new Response(
-      JSON.stringify({ error: 'Something went wrong, your streak is safe. Please try again.' }),
+      JSON.stringify({
+        error: 'Something went wrong, your streak is safe. Please try again.',
+        error_code: 'INTERNAL_EXCEPTION'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

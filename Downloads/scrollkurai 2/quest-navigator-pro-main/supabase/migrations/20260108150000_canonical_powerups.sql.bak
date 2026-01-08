@@ -1,0 +1,69 @@
+-- =============================================
+-- CANONICAL POWER-UP SYSTEM MIGRATION (PART 1: SCHEMA)
+-- Enforces strict backend authority, atomicity, and auditability
+-- =============================================
+
+-- 1. Update strategic_powerups table to Canonical Model
+DO $$
+BEGIN
+  -- Add duration_minutes if missing
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'strategic_powerups' AND column_name = 'duration_minutes') THEN
+    ALTER TABLE public.strategic_powerups ADD COLUMN duration_minutes INTEGER DEFAULT 1440; -- Default 24 hours
+  END IF;
+
+  -- Add cooldown_minutes if missing
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'strategic_powerups' AND column_name = 'cooldown_minutes') THEN
+    ALTER TABLE public.strategic_powerups ADD COLUMN cooldown_minutes INTEGER DEFAULT 0;
+  END IF;
+
+  -- Add stackable if missing
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'strategic_powerups' AND column_name = 'stackable') THEN
+    ALTER TABLE public.strategic_powerups ADD COLUMN stackable BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
+-- Migrate existing cooldown_days to cooldown_minutes
+UPDATE public.strategic_powerups
+SET cooldown_minutes = cooldown_days * 24 * 60
+WHERE cooldown_minutes = 0 AND cooldown_days > 0;
+
+-- 2. RECREATE user_strategic_powerups with Strict Constraints
+DROP TABLE IF EXISTS public.user_strategic_powerups CASCADE;
+
+CREATE TABLE public.user_strategic_powerups (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  powerup_id TEXT NOT NULL REFERENCES public.strategic_powerups(id) ON DELETE CASCADE,
+  activated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  cooldown_until TIMESTAMPTZ NOT NULL,
+  
+  -- The core constraint: Only one active/cooldown row per powerup per user
+  UNIQUE(user_id, powerup_id) 
+);
+
+-- Index for performance
+CREATE INDEX idx_user_powerups_lookup ON public.user_strategic_powerups(user_id, powerup_id);
+
+-- 3. Enable RLS (Strict)
+ALTER TABLE public.user_strategic_powerups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow powerup activation"
+ON public.user_strategic_powerups
+FOR INSERT
+WITH CHECK (
+  user_id = auth.uid() OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Read own powerups"
+ON public.user_strategic_powerups
+FOR SELECT
+USING (
+  user_id = auth.uid() OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Service manage powerups"
+ON public.user_strategic_powerups
+FOR ALL
+TO service_role
+USING (true);

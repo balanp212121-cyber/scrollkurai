@@ -526,3 +526,105 @@
 [2026-01-01T09:42:52.928Z] [PASS] Failure handling verified (Bad Params)
 [2026-01-01T09:42:53.073Z] [FAIL] Role Assignment Failed: duplicate key value violates unique constraint "user_roles_user_id_role_key"
 [2026-01-01T09:42:53.074Z] [INFO] --- AUDIT COMPLETE ---
+[2026-01-07T09:42:46.240Z] [INFO] --- PHASE 1: BOOT & ENVIRONMENT ---
+[2026-01-07T09:42:46.245Z] [INFO] Supabase URL: https://vfxvvovudyaofgdbkfua.supabase.co
+[2026-01-07T09:42:47.061Z] [PASS] Supabase Connection Successful
+[2026-01-07T09:42:47.063Z] [INFO] --- PHASE 2: DATABASE & SCHEMA AUDIT ---
+[2026-01-07T09:42:47.267Z] [PASS] Verified Table: quests (Rows: 250)
+[2026-01-07T09:42:47.427Z] [PASS] Verified Table: habits (Rows: 13)
+[2026-01-07T09:42:47.569Z] [PASS] Verified Table: admin_audit_logs (Rows: 24)
+[2026-01-07T09:42:47.779Z] [PASS] Verified Table: leaderboard_cache (Rows: 26)
+[2026-01-07T09:42:47.924Z] [PASS] Verified Table: counselling_requests (Rows: 12)
+[2026-01-07T09:42:48.070Z] [PASS] Verified Table: premium_lessons (Rows: 12)
+[2026-01-07T09:42:48.071Z] [INFO] Verifying RLS on admin_audit_logs...
+[2026-01-07T09:42:48.755Z] [PASS] RLS SUCCESS: Anon user cannot see admin logs
+[2026-01-07T09:42:48.756Z] [INFO] --- PHASE 3: AUTH & RBAC ---
+[2026-01-07T09:42:49.069Z] [PASS] Test Users Created
+[2026-01-07T09:42:49.317Z] [PASS] JWT Login Verified
+[2026-01-07T09:42:49.575Z] [PASS] RBAC PASS: User blocked from admin logs
+[2026-01-07T09:42:49.577Z] [INFO] --- PHASE 4A: HABITS FLOW ---
+[2026-01-07T09:42:49.837Z] [PASS] Habit Creation Verified
+[2026-01-07T09:42:49.911Z] [PASS] Habit Completion Verified
+[2026-01-07T09:42:49.913Z] [INFO] --- PHASE 4B: LEADERBOARDS ---
+[2026-01-07T09:42:50.178Z] [PASS] Leaderboard RPC Successful (Rows: 0)
+[2026-01-07T09:42:50.181Z] [INFO] --- PHASE 4C: VIDEO COURSES ---
+[2026-01-07T09:42:50.645Z] [PASS] Free User Visibility: Blocked
+[2026-01-07T09:42:50.719Z] [PASS] Progress Tracking Verified
+[2026-01-07T09:42:50.725Z] [INFO] --- PHASE 4D: COUNSELLING ---
+[2026-01-07T09:42:50.976Z] [PASS] Counselling Request Created
+[2026-01-07T09:42:51.203Z] [PASS] Admin Approval Verified
+[2026-01-07T09:42:51.206Z] [INFO] --- PHASE 4F: DAILY QUEST FIX CHECK ---
+[2026-01-07T09:42:51.373Z] [INFO] Requesting Quest for Date: 2026-01-07
+[2026-01-07T09:42:54.778Z] [PASS] Auto-Heal Success: Quest Generated
+[2026-01-07T09:42:55.621Z] [PASS] Idempotency Verified: Same Log ID returned
+[2026-01-07T09:42:56.942Z] [PASS] Timezone Logic Verified: Different quest for date
+[2026-01-07T09:42:56.954Z] [INFO] --- PHASE 4E: AI FEATURES ---
+[2026-01-07T09:42:58.006Z] [FAIL] AI Function Invoke Failed: Edge Function returned a non-2xx status code
+[2026-01-07T09:42:58.008Z] [INFO] --- PHASE 5: PAYMENT PROOF UPLOAD SECURITY ---
+[2026-01-07T09:42:58.245Z] [INFO] Testing Upload: Valid PNG...
+[2026-01-07T09:42:59.387Z] [INFO] Upload Accepted: Valid PNG
+[2026-01-07T09:42:59.389Z] [PASS] Valid PNG Accepted
+[2026-01-07T09:42:59.390Z] [INFO] Testing Upload: EXE renamed to JPG...
+[2026-01-07T09:42:59.635Z] [INFO] Upload Rejected (400): EXE renamed to JPG
+[2026-01-07T09:42:59.636Z] [PASS] Malware Rejected
+[2026-01-07T09:42:59.638Z] [INFO] Testing Upload: Oversized File...
+[2026-01-07T09:43:00.614Z] [INFO] Upload Rejected (400): Oversized File
+[2026-01-07T09:43:00.615Z] [PASS] Oversized File Rejected
+[2026-01-07T09:43:00.617Z] [INFO] Testing Upload: PDF File...
+[2026-01-07T09:43:00.857Z] [INFO] Upload Rejected (400): PDF File
+[2026-01-07T09:43:00.858Z] [PASS] PDF Rejected
+[2026-01-07T09:43:00.861Z] [INFO] --- PHASE 6: ADMIN & FAILURE ---
+[2026-01-07T09:43:01.550Z] [PASS] Failure handling verified (Bad Params)
+[2026-01-07T09:43:01.640Z] [FAIL] Role Assignment Failed: duplicate key value violates unique constraint "user_roles_user_id_role_key"
+[2026-01-07T09:43:01.641Z] [INFO] --- AUDIT COMPLETE ---
+[2026-01-07T10:25:52.983Z] [INFO] --- PHASE 1: BOOT & ENVIRONMENT ---
+[2026-01-07T10:25:52.986Z] [INFO] Supabase URL: https://vfxvvovudyaofgdbkfua.supabase.co
+[2026-01-07T10:25:53.874Z] [PASS] Supabase Connection Successful
+[2026-01-07T10:25:53.875Z] [INFO] --- PHASE 2: DATABASE & SCHEMA AUDIT ---
+[2026-01-07T10:25:54.162Z] [PASS] Verified Table: quests (Rows: 250)
+[2026-01-07T10:25:54.392Z] [PASS] Verified Table: habits (Rows: 14)
+[2026-01-07T10:25:54.595Z] [PASS] Verified Table: admin_audit_logs (Rows: 25)
+[2026-01-07T10:25:54.924Z] [PASS] Verified Table: leaderboard_cache (Rows: 26)
+[2026-01-07T10:25:55.125Z] [PASS] Verified Table: counselling_requests (Rows: 13)
+[2026-01-07T10:25:55.316Z] [PASS] Verified Table: premium_lessons (Rows: 13)
+[2026-01-07T10:25:55.317Z] [INFO] Verifying RLS on admin_audit_logs...
+[2026-01-07T10:25:56.118Z] [PASS] RLS SUCCESS: Anon user cannot see admin logs
+[2026-01-07T10:25:56.120Z] [INFO] --- PHASE 3: AUTH & RBAC ---
+[2026-01-07T10:25:56.430Z] [PASS] Test Users Created
+[2026-01-07T10:25:56.725Z] [PASS] JWT Login Verified
+[2026-01-07T10:25:57.061Z] [PASS] RBAC PASS: User blocked from admin logs
+[2026-01-07T10:25:57.063Z] [INFO] --- PHASE 4A: HABITS FLOW ---
+[2026-01-07T10:25:57.409Z] [PASS] Habit Creation Verified
+[2026-01-07T10:25:57.508Z] [PASS] Habit Completion Verified
+[2026-01-07T10:25:57.510Z] [INFO] --- PHASE 4B: LEADERBOARDS ---
+[2026-01-07T10:25:57.806Z] [PASS] Leaderboard RPC Successful (Rows: 0)
+[2026-01-07T10:25:57.807Z] [INFO] --- PHASE 4C: VIDEO COURSES ---
+[2026-01-07T10:25:58.349Z] [PASS] Free User Visibility: Blocked
+[2026-01-07T10:25:58.429Z] [PASS] Progress Tracking Verified
+[2026-01-07T10:25:58.431Z] [INFO] --- PHASE 4D: COUNSELLING ---
+[2026-01-07T10:25:58.775Z] [PASS] Counselling Request Created
+[2026-01-07T10:25:59.107Z] [PASS] Admin Approval Verified
+[2026-01-07T10:25:59.109Z] [INFO] --- PHASE 4F: DAILY QUEST FIX CHECK ---
+[2026-01-07T10:25:59.260Z] [INFO] Requesting Quest for Date: 2026-01-07
+[2026-01-07T10:26:01.177Z] [PASS] Auto-Heal Success: Quest Generated
+[2026-01-07T10:26:02.427Z] [PASS] Idempotency Verified: Same Log ID returned
+[2026-01-07T10:26:02.785Z] [PASS] Timezone Logic Verified: Different quest for date
+[2026-01-07T10:26:02.787Z] [INFO] --- PHASE 4E: AI FEATURES ---
+[2026-01-07T10:26:03.426Z] [FAIL] AI Function Invoke Failed: Edge Function returned a non-2xx status code
+[2026-01-07T10:26:03.427Z] [INFO] --- PHASE 5: PAYMENT PROOF UPLOAD SECURITY ---
+[2026-01-07T10:26:03.654Z] [INFO] Testing Upload: Valid PNG...
+[2026-01-07T10:26:04.500Z] [INFO] Upload Accepted: Valid PNG
+[2026-01-07T10:26:04.502Z] [PASS] Valid PNG Accepted
+[2026-01-07T10:26:04.503Z] [INFO] Testing Upload: EXE renamed to JPG...
+[2026-01-07T10:26:04.731Z] [INFO] Upload Rejected (400): EXE renamed to JPG
+[2026-01-07T10:26:04.732Z] [PASS] Malware Rejected
+[2026-01-07T10:26:04.733Z] [INFO] Testing Upload: Oversized File...
+[2026-01-07T10:26:05.353Z] [INFO] Upload Rejected (400): Oversized File
+[2026-01-07T10:26:05.353Z] [PASS] Oversized File Rejected
+[2026-01-07T10:26:05.354Z] [INFO] Testing Upload: PDF File...
+[2026-01-07T10:26:05.506Z] [INFO] Upload Rejected (400): PDF File
+[2026-01-07T10:26:05.507Z] [PASS] PDF Rejected
+[2026-01-07T10:26:05.508Z] [INFO] --- PHASE 6: ADMIN & FAILURE ---
+[2026-01-07T10:26:06.135Z] [PASS] Failure handling verified (Bad Params)
+[2026-01-07T10:26:06.223Z] [FAIL] Role Assignment Failed: duplicate key value violates unique constraint "user_roles_user_id_role_key"
+[2026-01-07T10:26:06.224Z] [INFO] --- AUDIT COMPLETE ---

@@ -6,119 +6,274 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to create consistent responses
+const createResponse = (data: any, status = 200) => {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const logs: string[] = [];
+  const log = (msg: string) => {
+    console.log(msg);
+    logs.push(`[${new Date().toISOString()}] ${msg}`);
+  };
+
   try {
+    log('=== ACCEPT QUEST START ===');
+
+    // ========================================
+    // 1️⃣ AUTHENTICATION
+    // ========================================
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      log('ERROR: No auth header');
+      return createResponse({
+        success: false,
+        error: 'Please login to accept quests',
+        code: 'AUTH_REQUIRED'
+      }, 401);
     }
 
-    // Extract user id from JWT (function is protected by verify_jwt)
+    // Extract user ID from JWT
     const token = authHeader.replace('Bearer', '').trim();
     let userId: string | null = null;
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       userId = payload?.sub ?? payload?.user_id ?? null;
-    } catch (_) {}
-
-    if (!userId) {
-      return new Response(JSON.stringify({ error: 'User not authenticated' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      log(`Auth: user_id extracted: ${userId?.substring(0, 8)}...`);
+    } catch (e) {
+      log(`ERROR: JWT parse failed: ${e}`);
     }
 
+    if (!userId) {
+      return createResponse({
+        success: false,
+        error: 'Session expired. Please login again.',
+        code: 'AUTH_INVALID'
+      }, 401);
+    }
 
-    const { questData } = await req.json();
-    console.log('Accepting quest for user:', userId, questData);
+    // ========================================
+    // 2️⃣ PARSE REQUEST
+    // ========================================
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      log(`ERROR: Failed to parse request body: ${e}`);
+      return createResponse({
+        success: false,
+        error: 'Invalid request',
+        code: 'INVALID_REQUEST'
+      }, 400);
+    }
 
-    // Use service role to create quest
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const { questData } = body;
 
-    // Check if quest with same content already exists
-    const { data: existingQuest } = await supabaseAdmin
+    if (!questData || !questData.title) {
+      log('ERROR: Missing questData or title');
+      return createResponse({
+        success: false,
+        error: 'Quest data is required',
+        code: 'INVALID_REQUEST'
+      }, 400);
+    }
+
+    log(`Quest title: "${questData.title.substring(0, 50)}..."`);
+
+    // ========================================
+    // 3️⃣ CREATE SUPABASE ADMIN CLIENT
+    // ========================================
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      log('ERROR: Missing Supabase credentials');
+      return createResponse({
+        success: false,
+        error: 'Service configuration error',
+        code: 'CONFIG_ERROR'
+      }, 500);
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    log('Supabase client created');
+
+    // ========================================
+    // 4️⃣ CHECK FOR EXISTING QUEST BY TITLE
+    // ========================================
+    const { data: existingQuest, error: findError } = await supabaseAdmin
       .from('quests')
       .select('id')
       .eq('content', questData.title)
       .maybeSingle();
 
+    if (findError) {
+      log(`ERROR: Quest lookup failed: ${JSON.stringify(findError)}`);
+      return createResponse({
+        success: false,
+        error: 'Could not check quest. Please try again.',
+        code: 'LOOKUP_FAILED',
+        details: findError.message
+      }, 500);
+    }
+
     let questId: string;
 
     if (existingQuest) {
-      // Quest already exists, check if user already has it
-      const { data: existingAssignment } = await supabaseAdmin
+      questId = existingQuest.id;
+      log(`Found existing quest: ${questId}`);
+
+      // Check if user already has this quest ACTIVE
+      const { data: existingAssignment, error: assignmentError } = await supabaseAdmin
         .from('user_quest_log')
-        .select('id')
+        .select('id, completed_at')
         .eq('user_id', userId)
-        .eq('quest_id', existingQuest.id)
+        .eq('quest_id', questId)
+        .is('completed_at', null)
         .maybeSingle();
 
-      if (existingAssignment) {
-        // User already has this quest, return existing
-        console.log('Quest already assigned to user:', existingQuest.id);
-        return new Response(
-          JSON.stringify({ success: true, questId: existingQuest.id, alreadyExists: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (assignmentError) {
+        log(`ERROR: Assignment check failed: ${JSON.stringify(assignmentError)}`);
       }
 
-      questId = existingQuest.id;
+      if (existingAssignment) {
+        log(`Quest already active for user: ${existingAssignment.id}`);
+        return createResponse({
+          success: true,
+          questId,
+          logId: existingAssignment.id,
+          alreadyActive: true,
+          message: 'Quest is already in your active list!'
+        });
+      }
     } else {
-      // Create new quest
-      const { data: newQuest, error: questError } = await supabaseAdmin
+      // ========================================
+      // 5️⃣ CREATE NEW QUEST
+      // ========================================
+      log('Creating new quest...');
+
+      const { data: newQuest, error: createError } = await supabaseAdmin
         .from('quests')
         .insert({
           content: questData.title,
-          reflection_prompt: questData.reflectionPrompt,
-          target_archetype: questData.archetype
+          reflection_prompt: questData.reflectionPrompt || `Reflect on completing "${questData.title}". How did it help you?`,
+          target_archetype: questData.archetype || 'Mind Wanderer'
         })
-        .select()
+        .select('id')
         .single();
 
-      if (questError) {
-        console.error('Error creating quest:', questError);
-        throw questError;
+      if (createError) {
+        log(`ERROR: Quest creation failed: ${JSON.stringify(createError)}`);
+        return createResponse({
+          success: false,
+          error: 'Could not create quest. Please try again.',
+          code: 'QUEST_CREATE_FAILED',
+          details: createError.message
+        }, 500);
       }
 
       questId = newQuest.id;
+      log(`Created new quest: ${questId}`);
     }
 
-    // Assign quest to user
-    const { error: logError } = await supabaseAdmin
+    // ========================================
+    // 6️⃣ ASSIGN QUEST TO USER
+    // ========================================
+    log(`Assigning quest ${questId} to user ${userId.substring(0, 8)}...`);
+
+    const { data: newLog, error: logError } = await supabaseAdmin
       .from('user_quest_log')
       .insert({
         user_id: userId,
-        quest_id: questId
-      });
+        quest_id: questId,
+        assigned_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
 
     if (logError) {
-      console.error('Error assigning quest:', logError);
-      throw logError;
+      log(`ERROR: Quest assignment failed: ${JSON.stringify(logError)}`);
+
+      // Handle duplicate key constraint
+      if (logError.code === '23505') {
+        log('Duplicate detected - fetching existing assignment');
+
+        const { data: existingLog } = await supabaseAdmin
+          .from('user_quest_log')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('quest_id', questId)
+          .is('completed_at', null)
+          .maybeSingle();
+
+        if (existingLog) {
+          return createResponse({
+            success: true,
+            questId,
+            logId: existingLog.id,
+            alreadyActive: true,
+            message: 'Quest is already in your active list!'
+          });
+        }
+      }
+
+      return createResponse({
+        success: false,
+        error: 'Could not accept quest. Please try again.',
+        code: 'ASSIGN_FAILED',
+        details: logError.message
+      }, 500);
     }
 
-    console.log('Quest accepted successfully:', questId);
+    log(`SUCCESS: Quest assigned, log_id: ${newLog.id}`);
 
-    return new Response(
-      JSON.stringify({ success: true, questId: questId }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // ========================================
+    // 7️⃣ LOG TO ADMIN (optional)
+    // ========================================
+    try {
+      await supabaseAdmin.from('admin_audit_logs').insert({
+        admin_id: userId,
+        action_type: 'QUEST_ACCEPTED',
+        details: JSON.stringify({
+          questId,
+          title: questData.title,
+          logId: newLog.id,
+          logs
+        }),
+        created_at: new Date().toISOString()
+      });
+    } catch (e) {
+      log(`Admin log skipped: ${e}`);
+    }
+
+    // ========================================
+    // 8️⃣ RETURN SUCCESS
+    // ========================================
+    log('=== ACCEPT QUEST END (SUCCESS) ===');
+
+    return createResponse({
+      success: true,
+      questId,
+      logId: newLog.id,
+      message: 'Quest accepted! Go crush it! 💪'
+    });
 
   } catch (error) {
-    console.error('Error in accept-personalized-quest:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error('CRITICAL ERROR in accept-personalized-quest:', error);
+
+    return createResponse({
+      success: false,
+      error: 'Something went wrong. Please try again.',
+      code: 'UNKNOWN_ERROR',
+      details: error instanceof Error ? error.message : 'Unknown'
+    }, 500);
   }
 });

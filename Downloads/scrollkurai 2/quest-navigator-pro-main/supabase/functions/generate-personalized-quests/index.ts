@@ -6,290 +6,347 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================
+// FALLBACK QUESTS - Used when AI fails
+// ============================================
+const FALLBACK_QUESTS = [
+  {
+    title: "Focus Reset",
+    description: "Spend 25 minutes on one meaningful task without distractions.",
+    difficulty: "easy",
+    estimatedTime: "25 min",
+    xpReward: 50,
+    reasoning: "A focused work block helps reset your productivity rhythm."
+  },
+  {
+    title: "Digital Sunset",
+    description: "Put your phone in another room for 1 hour before bed.",
+    difficulty: "easy",
+    estimatedTime: "60 min",
+    xpReward: 75,
+    reasoning: "Evening screen breaks improve sleep quality."
+  },
+  {
+    title: "Mindful Check-In",
+    description: "Take 5 minutes to write down how you're feeling right now.",
+    difficulty: "easy",
+    estimatedTime: "5 min",
+    xpReward: 30,
+    reasoning: "Self-awareness is the foundation of intentional living."
+  }
+];
+
+const NO_GOALS_QUESTS = [
+  {
+    title: "Set Your First Goal",
+    description: "Head to Goals and set one goal for the week. Start small!",
+    difficulty: "easy",
+    estimatedTime: "5 min",
+    xpReward: 100,
+    reasoning: "Goals give your journey direction and meaning."
+  }
+];
+
+// Helper response creator
+const createResponse = (data: any, status = 200) => {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const logs: string[] = [];
+  const log = (msg: string) => {
+    console.log(`[GENERATE] ${msg}`);
+    logs.push(`[${new Date().toISOString()}] ${msg}`);
+  };
+
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    );
+    log('=== QUEST GENERATION START ===');
+
+    // ========================================
+    // 1️⃣ AUTH - Use service role for DB operations
+    // ========================================
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+    const authHeader = req.headers.get('Authorization');
+    const supabaseClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader! } }
+    });
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      log('ERROR: Unauthorized');
+      return createResponse({ error: 'Unauthorized' }, 401);
     }
 
-    // Fetch user profile and activity data
-    const { data: profile } = await supabaseClient
+    log(`User: ${user.id.substring(0, 8)}...`);
+
+    // ========================================
+    // 2️⃣ PROFILE & QUOTA CHECK
+    // ========================================
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
 
-    // Check monthly usage for non-premium users
     const isPremium = profile?.premium_status === true;
-    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+    const currentMonth = new Date().toISOString().slice(0, 7);
 
     if (!isPremium) {
-      const { data: monthlyUsage } = await supabaseClient
+      const { data: monthlyUsage } = await supabaseAdmin
         .from('ai_goal_usage')
         .select('id')
         .eq('user_id', user.id)
         .eq('goal_month', currentMonth);
 
       if (monthlyUsage && monthlyUsage.length > 0) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Monthly limit reached',
-            code: 'MONTHLY_LIMIT',
-            message: 'Free users can generate AI quests once per month. Upgrade to Premium for unlimited access!',
-            nextAvailable: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
-          }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        log('Monthly limit reached');
+        return createResponse({
+          error: 'Monthly limit reached',
+          code: 'MONTHLY_LIMIT',
+          message: 'Free users get 1 AI quest generation per month. Upgrade to Premium!',
+          nextAvailable: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+        }, 403);
       }
     }
 
-    const { data: goals } = await supabaseClient
+    // ========================================
+    // 3️⃣ CHECK FOR GOALS
+    // ========================================
+    const { data: goals } = await supabaseAdmin
       .from('user_goals')
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true);
 
-    // Get today's daily quest to exclude it
-    const today = new Date().toISOString().split('T')[0];
-    const { data: todayQuest } = await supabaseClient
-      .from('user_quest_log')
-      .select('*, quests(*)')
-      .eq('user_id', user.id)
-      .gte('assigned_at', `${today}T00:00:00`)
-      .lte('assigned_at', `${today}T23:59:59`)
-      .order('assigned_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // ========================================
+    // 4️⃣ GENERATE QUESTS (AI or Fallback)
+    // ========================================
+    let recommendations = FALLBACK_QUESTS;
+    let isFallback = false;
 
-    // Get quests from the last 45 days to avoid repetition
-    const fortyFiveDaysAgo = new Date();
-    fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+    if (!goals || goals.length === 0) {
+      log('No goals - using goal-setting quests');
+      recommendations = NO_GOALS_QUESTS;
+      isFallback = true;
+    } else {
+      try {
+        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+        if (!LOVABLE_API_KEY) throw new Error('API key not configured');
 
-    const { data: recentQuests } = await supabaseClient
-      .from('user_quest_log')
-      .select('*, quests(*)')
-      .eq('user_id', user.id)
-      .gte('assigned_at', fortyFiveDaysAgo.toISOString())
-      .order('assigned_at', { ascending: false });
+        const goalContext = goals.map((g: any) =>
+          `- ${g.goal_type}: Target ${g.target_value} min/day`
+        ).join('\n');
 
-    // Get quest completion patterns
-    const { data: completionStats } = await supabaseClient
-      .from('user_quest_log')
-      .select('completed_at, assigned_at')
-      .eq('user_id', user.id)
-      .not('completed_at', 'is', null);
+        const systemPrompt = `Generate 3 personalized quests as JSON array.
+USER: Level ${profile?.level || 1}, Streak ${profile?.streak || 0} days
+GOALS:
+${goalContext}
 
-    const avgCompletionTime = completionStats?.length 
-      ? completionStats.reduce((acc, q) => {
-          const assigned = new Date(q.assigned_at).getTime();
-          const completed = new Date(q.completed_at!).getTime();
-          return acc + (completed - assigned);
-        }, 0) / completionStats.length / (1000 * 60 * 60) // hours
-      : 0;
+RESPOND WITH ONLY JSON (no markdown):
+[{"title":"...","description":"...","difficulty":"easy|medium|hard","estimatedTime":"X min","xpReward":30-100,"reasoning":"..."}]`;
 
-    // Build context for AI
-    const userContext = {
-      archetype: profile?.archetype || 'Beginner',
-      level: profile?.level || 1,
-      xp: profile?.xp || 0,
-      streak: profile?.streak || 0,
-      totalQuestsCompleted: profile?.total_quests_completed || 0,
-      activeGoals: goals || [],
-      todayQuest: todayQuest?.quests?.content || null,
-      recentQuestTypes: recentQuests?.map(q => q.quests?.content) || [],
-      averageCompletionTimeHours: Math.round(avgCompletionTime * 10) / 10,
-      engagementLevel: profile?.streak > 7 ? 'high' : profile?.streak > 3 ? 'medium' : 'low'
-    };
+        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: 'Generate my quests now. Return ONLY valid JSON.' }
+            ],
+            temperature: 0.7,
+          }),
+        });
 
-    console.log('Generating personalized quests for user:', user.id, userContext);
+        if (!aiResponse.ok) throw new Error(`AI API error: ${aiResponse.status}`);
 
-    // Call Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+        const aiData = await aiResponse.json();
+        const content = aiData.choices[0]?.message?.content;
+
+        if (content) {
+          let jsonStr = content;
+          const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (codeBlockMatch) jsonStr = codeBlockMatch[1];
+          else {
+            const arrayMatch = content.match(/\[[\s\S]*\]/);
+            if (arrayMatch) jsonStr = arrayMatch[0];
+          }
+          jsonStr = jsonStr.replace(/^[^[{]*/, '').replace(/[^}\]]*$/, '').trim();
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            recommendations = parsed;
+            log(`AI generated ${parsed.length} quests`);
+          }
+        }
+      } catch (aiError) {
+        log(`AI failed, using fallback: ${aiError}`);
+        isFallback = true;
+        recommendations = FALLBACK_QUESTS;
+      }
     }
 
-    const systemPrompt = `You are an AI personalization engine for a digital wellness app that helps users reduce screen time and build better habits. 
+    // ========================================
+    // 5️⃣ ATOMIC PERSISTENCE - CREATE QUESTS IN DB
+    // ========================================
+    log('Persisting quests to database...');
 
-Analyze the user's profile and generate 3-5 personalized quest recommendations that will help them achieve their goals.
+    const createdQuests: any[] = [];
+    const createdAssignments: any[] = [];
 
-User Profile:
-- Archetype: ${userContext.archetype}
-- Level: ${userContext.level}
-- Current Streak: ${userContext.streak} days
-- Total Quests Completed: ${userContext.totalQuestsCompleted}
-- Engagement Level: ${userContext.engagementLevel}
-- Average Quest Completion Time: ${userContext.averageCompletionTimeHours} hours
+    for (const rec of recommendations) {
+      // Check if quest already exists by title
+      const { data: existingQuest } = await supabaseAdmin
+        .from('quests')
+        .select('id')
+        .eq('content', rec.title)
+        .maybeSingle();
 
-Active Goals:
-${userContext.activeGoals.map((g: any) => 
-  `- ${g.goal_type}: ${g.target_app ? `Reduce ${g.target_app} by` : 'Target'} ${g.target_value} minutes/day (Current: ${g.current_baseline || 'unknown'} min)`
-).join('\n') || 'No active goals set'}
+      let questId: string;
 
-Today's Daily Quest (DO NOT RECOMMEND):
-${userContext.todayQuest || 'None assigned today'}
+      if (existingQuest) {
+        questId = existingQuest.id;
+        log(`Quest exists: ${questId.substring(0, 8)}...`);
+      } else {
+        // Create new quest
+        const { data: newQuest, error: createError } = await supabaseAdmin
+          .from('quests')
+          .insert({
+            content: rec.title,
+            reflection_prompt: `Reflect on completing "${rec.title}". ${rec.description}`,
+            target_archetype: profile?.archetype || 'Mind Wanderer'
+          })
+          .select('id')
+          .single();
 
-Recent Quest Patterns (Last 45 Days):
-${userContext.recentQuestTypes.slice(0, 10).join('\n') || 'No recent quests'}
+        if (createError) {
+          log(`ERROR creating quest: ${JSON.stringify(createError)}`);
+          continue; // Skip this quest, try next
+        }
 
-CRITICAL: 
-- DO NOT recommend today's daily quest listed above
-- DO NOT recommend any quests similar to or repeating the recent quests
-- The user should not see the same quest for at least 45 days
-- Provide ONLY fresh, unique AI recommendations
+        questId = newQuest.id;
+        log(`Created quest: ${questId.substring(0, 8)}...`);
+      }
 
-Generate personalized recommendations that:
-1. Align with their active goals
-2. Match their engagement level and streak
-3. Gradually increase in difficulty
-4. Are specific and actionable
-5. Include variety to prevent burnout
-6. Are completely different from recent quests (no repeats for 45 days)
+      createdQuests.push({ ...rec, questId });
 
-Return your recommendations as a JSON array with this structure. CRITICAL: Return ONLY the JSON array, no markdown code blocks, no extra text before or after:
-[
-  {
-    "title": "Quest title (max 60 chars)",
-    "description": "Detailed description (2-3 sentences)",
-    "difficulty": "easy|medium|hard",
-    "estimatedTime": "15-30 min",
-    "xpReward": 100-500,
-    "reasoning": "Why this quest fits the user (1 sentence)"
-  }
-]`;
+      // Check if user already has this quest assigned (not completed)
+      const { data: existingAssignment } = await supabaseAdmin
+        .from('user_quest_log')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('quest_id', questId)
+        .is('completed_at', null)
+        .maybeSingle();
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+      if (!existingAssignment) {
+        // Create assignment
+        const { data: newAssignment, error: assignError } = await supabaseAdmin
+          .from('user_quest_log')
+          .insert({
+            user_id: user.id,
+            quest_id: questId,
+            assigned_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (assignError) {
+          log(`ERROR assigning quest: ${JSON.stringify(assignError)}`);
+        } else {
+          createdAssignments.push({ questId, logId: newAssignment.id });
+          log(`Assigned: ${newAssignment.id.substring(0, 8)}...`);
+        }
+      } else {
+        log(`Already assigned: ${existingAssignment.id.substring(0, 8)}...`);
+        createdAssignments.push({ questId, logId: existingAssignment.id });
+      }
+    }
+
+    // ========================================
+    // 6️⃣ VERIFY AT LEAST ONE QUEST PERSISTED
+    // ========================================
+    if (createdQuests.length === 0) {
+      log('ERROR: No quests could be created');
+      return createResponse({
+        success: false,
+        error: 'Could not create quests. Please try again.',
+        code: 'CREATION_FAILED'
+      }, 500);
+    }
+
+    // ========================================
+    // 7️⃣ TRACK USAGE (Non-Premium)
+    // ========================================
+    if (!isPremium) {
+      await supabaseAdmin.from('ai_goal_usage').insert({
+        user_id: user.id,
+        goal_month: currentMonth,
+        goal_content: JSON.stringify(createdQuests.map(q => q.title)),
+        generated_at: new Date().toISOString()
+      });
+    }
+
+    // ========================================
+    // 8️⃣ LOG TO ADMIN
+    // ========================================
+    try {
+      await supabaseAdmin.from('admin_audit_logs').insert({
+        admin_id: user.id,
+        action_type: 'QUEST_GENERATION_SUCCESS',
+        details: JSON.stringify({
+          count: createdQuests.length,
+          isFallback,
+          questIds: createdQuests.map(q => q.questId)
+        }),
+        created_at: new Date().toISOString()
+      });
+    } catch (e) { }
+
+    log(`=== SUCCESS: ${createdQuests.length} quests persisted ===`);
+
+    // ========================================
+    // 9️⃣ RETURN SUCCESS (ONLY AFTER DB COMMIT)
+    // ========================================
+    return createResponse({
+      success: true,
+      recommendations: createdQuests.map(q => ({
+        ...q,
+        id: q.questId // Include DB ID for frontend
+      })),
+      assignments: createdAssignments,
+      userContext: {
+        archetype: profile?.archetype || 'Beginner',
+        level: profile?.level || 1,
+        activeGoalsCount: goals?.length || 0,
+        isPremium
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'Generate personalized quest recommendations for me. Return ONLY valid JSON array.' }
-        ],
-        temperature: 0.7,
-      }),
+      isFallback,
+      questsCreated: createdQuests.length,
+      message: `${createdQuests.length} personalized quests ready!`
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', aiResponse.status, errorText);
-      
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), 
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI credits exhausted. Please add credits to continue.' }), 
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`AI API error: ${errorText}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const content = aiData.choices[0].message.content;
-    
-    // Parse AI response with robust error handling
-    let recommendations;
-    try {
-      // Try multiple parsing strategies
-      let jsonStr = content;
-      
-      // Strategy 1: Extract from markdown code blocks
-      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (codeBlockMatch) {
-        jsonStr = codeBlockMatch[1];
-      } 
-      // Strategy 2: Extract array from text
-      else {
-        const arrayMatch = content.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-          jsonStr = arrayMatch[0];
-        }
-      }
-      
-      // Clean up common issues
-      jsonStr = jsonStr
-        .replace(/^[^[{]*/, '') // Remove text before JSON
-        .replace(/[^}\]]*$/, '') // Remove text after JSON
-        .trim();
-      
-      recommendations = JSON.parse(jsonStr);
-      
-      // Validate structure
-      if (!Array.isArray(recommendations) || recommendations.length === 0) {
-        throw new Error('Invalid recommendations structure');
-      }
-      
-      // Validate each recommendation has required fields
-      for (const rec of recommendations) {
-        if (!rec.title || !rec.description || !rec.difficulty || !rec.xpReward) {
-          console.warn('Invalid recommendation structure:', rec);
-          throw new Error('Missing required fields in recommendation');
-        }
-      }
-      
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', content);
-      console.error('Parse error:', parseError);
-      throw new Error('Failed to parse AI recommendations. Please try again.');
-    }
-
-    console.log('Generated recommendations:', recommendations);
-
-    // Track usage for non-premium users
-    if (!isPremium) {
-      await supabaseClient
-        .from('ai_goal_usage')
-        .insert({
-          user_id: user.id,
-          goal_month: currentMonth,
-          goal_content: JSON.stringify(recommendations.map((r: any) => r.title)),
-          generated_at: new Date().toISOString()
-        });
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        recommendations,
-        userContext: {
-          archetype: userContext.archetype,
-          level: userContext.level,
-          activeGoalsCount: userContext.activeGoals.length,
-          isPremium
-        }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
   } catch (error) {
-    console.error('Error in generate-personalized-quests:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('CRITICAL ERROR:', error);
+
+    return createResponse({
+      success: false,
+      error: 'We\'re preparing your quests. Please try again in a moment.',
+      code: 'GENERATION_FAILED'
+    }, 500);
   }
 });

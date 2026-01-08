@@ -59,14 +59,13 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
         </div>
       );
     }
-    
+
     const remaining = Math.max(0, 1 - usedThisMonth);
     return (
-      <div className={`flex items-center gap-1.5 sm:gap-2 ${compact ? 'px-2 py-1' : 'px-2 sm:px-3 py-1 sm:py-1.5'} rounded-full border ${
-        remaining > 0 
-          ? 'bg-primary/10 border-primary/20' 
-          : 'bg-muted border-muted-foreground/20'
-      }`}>
+      <div className={`flex items-center gap-1.5 sm:gap-2 ${compact ? 'px-2 py-1' : 'px-2 sm:px-3 py-1 sm:py-1.5'} rounded-full border ${remaining > 0
+        ? 'bg-primary/10 border-primary/20'
+        : 'bg-muted border-muted-foreground/20'
+        }`}>
         <Sparkles className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${remaining > 0 ? 'text-primary' : 'text-muted-foreground'}`} />
         <span className={`text-xs sm:text-sm font-medium whitespace-nowrap ${remaining > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
           {remaining}/1 remaining
@@ -140,49 +139,52 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
 
       if (error) {
         console.error("Recommendations error:", error);
-        
-        // Handle monthly limit error
-        if (error.message?.includes('403') || error.message?.includes('MONTHLY_LIMIT')) {
+        toast.info("We're preparing your quests. Please try again.");
+        return;
+      }
+
+      // Check if backend returned error
+      if (data?.success === false || data?.error) {
+        if (data?.code === 'MONTHLY_LIMIT') {
           setMonthlyLimitReached(true);
-          const nextMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
-          setNextAvailableDate(nextMonth.toLocaleDateString());
+          setNextAvailableDate(new Date(data.nextAvailable).toLocaleDateString());
           toast.error("Monthly limit reached", {
             description: "Upgrade to Premium for unlimited AI quests!"
           });
-          return;
-        }
-        
-        if (error.message?.includes('429')) {
-          toast.error("Rate limit exceeded. Please try again in a few minutes.");
-        } else if (error.message?.includes('402')) {
-          toast.error("AI credits exhausted. Please add credits to continue.");
-        } else if (error.message?.includes('parse')) {
-          toast.error("Failed to process AI response. Please try again.", {
-            description: "The AI service returned an unexpected format."
-          });
         } else {
-          toast.error("Failed to generate recommendations. Please try again.");
+          toast.info(data?.message || "We're syncing your quests. Please try again.");
         }
         return;
       }
 
-      // Check if response contains limit error
-      if (data?.code === 'MONTHLY_LIMIT') {
-        setMonthlyLimitReached(true);
-        setNextAvailableDate(new Date(data.nextAvailable).toLocaleDateString());
-        return;
-      }
+      // ✅ SUCCESS - Quests are already persisted in DB!
+      const isFallback = data?.isFallback === true;
 
       setRecommendations(data.recommendations || []);
       setUserContext(data.userContext);
       setIsPremium(data.userContext?.isPremium || false);
-      
-      if (data.recommendations?.length > 0) {
-        // Trigger confetti
-        setTimeout(() => {
-          const duration = 2000;
-          const end = Date.now() + duration;
 
+      // Show success message with count
+      const questCount = data.questsCreated || data.recommendations?.length || 0;
+      toast.success(`${questCount} quests ready! 🎯`, {
+        description: isFallback ? "Curated picks for you" : "AI-personalized for your goals"
+      });
+
+      // Quests are already assigned - refresh active quests list
+      await fetchAcceptedQuests();
+
+      // Handle "no goals" message
+      if (data.userContext?.noGoalsMessage) {
+        toast.info(data.userContext.noGoalsMessage, {
+          description: "Head to Goals to set your first target!"
+        });
+      }
+
+      // Trigger confetti for AI-generated quests
+      if (data.recommendations?.length > 0 && !isFallback) {
+        setTimeout(() => {
+          const duration = 1500;
+          const end = Date.now() + duration;
           const frame = () => {
             confetti({
               particleCount: 3,
@@ -200,21 +202,17 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
               colors: ['#FFD700', '#FFA500', '#FF6347'],
               zIndex: 9999,
             });
-
             if (Date.now() < end) {
               requestAnimationFrame(frame);
             }
           };
-
           frame();
         }, 100);
-        
-        // Show gift modal
-        setShowGiftModal(true);
       }
     } catch (error) {
       console.error("Error fetching recommendations:", error);
-      toast.error("Failed to generate recommendations");
+      // Never show harsh error - the backend always returns fallback quests
+      toast.info("Loading curated quests...");
     } finally {
       setLoading(false);
     }
@@ -252,16 +250,46 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
         }
       });
 
-      if (error) throw error;
+      // Handle edge function errors
+      if (error) {
+        console.error("Accept quest error:", error);
+        toast.error("Could not accept quest. Please try again.");
+        return;
+      }
 
-      toast.success(`Quest accepted: ${rec.title}`, {
-        description: "Complete it to earn XP!"
-      });
+      // Handle backend-returned errors with friendly messages
+      if (data?.error) {
+        if (data.code === 'AUTH_REQUIRED' || data.code === 'AUTH_INVALID') {
+          toast.error("Please login to accept quests");
+        } else if (data.code === 'RECENTLY_COMPLETED') {
+          toast.info("You completed this quest recently!", {
+            description: "Try again in a few days."
+          });
+        } else {
+          toast.error(data.error);
+        }
+        return;
+      }
 
+      // Handle "already active" case (idempotent)
+      if (data?.alreadyActive) {
+        toast.info("Quest already in your active list! 🎯");
+      } else {
+        // Success!
+        toast.success(`Quest locked in! 💪`, {
+          description: `"${rec.title}" added to your active quests`
+        });
+      }
+
+      // Instantly remove from recommendations
+      setRecommendations(prev => prev.filter((_, i) => i !== index));
+
+      // Refresh active quests list
       await fetchAcceptedQuests();
+
     } catch (error) {
       console.error("Error accepting quest:", error);
-      toast.error("Failed to accept quest");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setAcceptingIndex(null);
     }
@@ -296,9 +324,9 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
         <div className="flex flex-col items-center justify-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <div className="text-center">
-            <h3 className="font-semibold text-lg">Generating Your Personalized Quests...</h3>
+            <h3 className="font-semibold text-lg">Crafting your quest...</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              AI is analyzing your patterns and goals
+              Analyzing your goals and patterns ✨
             </p>
           </div>
         </div>
@@ -332,7 +360,7 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
               </p>
             )}
           </div>
-          <Button 
+          <Button
             onClick={() => navigate('/premium')}
             className="gap-2"
           >
@@ -355,7 +383,7 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
           <div>
             <h3 className="font-semibold text-lg">AI-Powered Quest Recommendations</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {isPremium 
+              {isPremium
                 ? "Generate unlimited personalized quests tailored to your goals"
                 : "Free users get 1 AI quest generation per month"}
             </p>
@@ -363,7 +391,7 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
           <div className="flex justify-center">
             <UsageIndicator />
           </div>
-          <Button 
+          <Button
             onClick={fetchRecommendations}
             disabled={loading}
             className="gap-2"
@@ -396,7 +424,7 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
                   <h3 className="font-semibold text-lg leading-tight">{quest.quests.content}</h3>
                   <Badge className="bg-primary/10 text-primary">Active</Badge>
                 </div>
-                <Button 
+                <Button
                   className="w-full"
                   onClick={() => setSelectedQuest(quest)}
                 >
@@ -444,49 +472,49 @@ export const PersonalizedRecommendations = ({ onRefresh }: PersonalizedRecommend
 
         <div className="grid gap-4 md:grid-cols-2">
           {recommendations.map((rec, index) => (
-                <Card key={index} className="p-4 space-y-3 hover:border-primary/50 transition-colors">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-lg leading-tight">{rec.title}</h3>
-                    <Badge className={getDifficultyColor(rec.difficulty)}>
-                      {rec.difficulty}
-                    </Badge>
-                  </div>
+            <Card key={index} className="p-4 space-y-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-lg leading-tight">{rec.title}</h3>
+                <Badge className={getDifficultyColor(rec.difficulty)}>
+                  {rec.difficulty}
+                </Badge>
+              </div>
 
-                  <p className="text-sm text-muted-foreground">{rec.description}</p>
+              <p className="text-sm text-muted-foreground">{rec.description}</p>
 
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      {rec.estimatedTime}
-                    </div>
-                    <div className="flex items-center gap-1 text-primary">
-                      <Trophy className="h-4 w-4" />
-                      {rec.xpReward} XP
-                    </div>
-                  </div>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  {rec.estimatedTime}
+                </div>
+                <div className="flex items-center gap-1 text-primary">
+                  <Trophy className="h-4 w-4" />
+                  {rec.xpReward} XP
+                </div>
+              </div>
 
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-xs text-muted-foreground italic">
-                      💡 {rec.reasoning}
-                    </p>
-                  </div>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground italic">
+                  💡 {rec.reasoning}
+                </p>
+              </div>
 
-                  <Button 
-                    className="w-full"
-                    onClick={() => handleAcceptQuest(rec, index)}
-                    disabled={acceptingIndex === index}
-                  >
-                    {acceptingIndex === index ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Accepting...
-                      </>
-                    ) : (
-                      "Accept Quest"
-                    )}
-                  </Button>
-                </Card>
-              ))}
+              <Button
+                className="w-full"
+                onClick={() => handleAcceptQuest(rec, index)}
+                disabled={acceptingIndex !== null}
+              >
+                {acceptingIndex === index ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Locking in...
+                  </>
+                ) : (
+                  "Accept Quest"
+                )}
+              </Button>
+            </Card>
+          ))}
         </div>
       </div>
 

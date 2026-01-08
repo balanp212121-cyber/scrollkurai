@@ -71,6 +71,8 @@ serve(async (req) => {
           quest: existingLog.quests,
           log_id: existingLog.id,
           completed: !!existingLog.completed_at,
+          status: existingLog.status || (existingLog.completed_at ? 'completed' : 'active'),
+          accepted_at: existingLog.accepted_at,
           date: existingLog.assignment_date
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -202,12 +204,15 @@ serve(async (req) => {
     }
 
     // 5. Safe Assign (UPSERT to prevent race conditions)
+    // Quests are assigned in 'pending' status - user must call accept-quest to activate
     const { data: newLog, error: upsertError } = await supabaseClient
       .from('user_quest_log')
       .upsert({
         user_id: user.id,
         quest_id: selectedQuest.id,
-        assignment_date: requestDate
+        assignment_date: requestDate,
+        status: 'pending',
+        accepted_at: null
       }, {
         onConflict: 'user_id, assignment_date',
         ignoreDuplicates: true
@@ -237,6 +242,8 @@ serve(async (req) => {
         quest: finalLog.quests || selectedQuest,
         log_id: finalLog.id,
         completed: !!finalLog.completed_at,
+        status: finalLog.status || 'pending',
+        accepted_at: finalLog.accepted_at,
         date: finalLog.assignment_date
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

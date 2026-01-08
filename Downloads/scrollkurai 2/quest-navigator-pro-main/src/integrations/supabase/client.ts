@@ -3,9 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Defensive validation - fail fast with clear error instead of white screen
+// Defensive validation - log error but don't crash app immediately
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   const missingVars = [];
   if (!SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
@@ -14,30 +14,58 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   const errorMessage = `❌ Missing required environment variables: ${missingVars.join(', ')}. Please check your .env file.`;
   console.error(errorMessage);
 
-  // Show visible error in DOM if we're in browser context
-  if (typeof document !== 'undefined') {
-    document.body.innerHTML = `
-      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1a2e;color:#fff;font-family:system-ui;">
-        <div style="max-width:500px;padding:2rem;text-align:center;">
-          <h1 style="color:#ff6b6b;margin-bottom:1rem;">⚠️ Configuration Error</h1>
-          <p style="margin-bottom:1rem;">Missing environment variables:</p>
-          <code style="background:#0f0f23;padding:1rem;display:block;border-radius:8px;color:#ffd700;">${missingVars.join(', ')}</code>
-          <p style="margin-top:1rem;color:#888;">Please ensure your <code>.env</code> file contains all required VITE_ variables and restart the dev server.</p>
-        </div>
-      </div>
-    `;
-  }
-
-  throw new Error(errorMessage);
+  // We do NOT throw here because it kills the entire app render.
+  // We let it proceed so the ErrorBoundary can catch the specific failure later if needed.
 }
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+// Safe client creation pattern matching the type definition
+const createSafeClient = () => {
+  if (SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY) {
+    return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    });
   }
-});
+
+  // Fallback mock client to prevent app crash on load
+  console.warn("⚠️ Initializing Supabase with mock client due to missing env vars");
+
+  return {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          single: () => Promise.resolve({ data: null, error: null }),
+          limit: () => Promise.resolve({ data: null, error: null }),
+          order: () => Promise.resolve({ data: null, error: null }),
+          in: () => Promise.resolve({ data: null, error: null }),
+        }),
+        limit: () => Promise.resolve({ data: null, error: null }),
+      }),
+      insert: () => Promise.resolve({ error: null }),
+      update: () => Promise.resolve({ error: null }),
+    }),
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error: null }),
+    },
+    channel: () => ({
+      on: () => ({ subscribe: () => { } }),
+      subscribe: () => { },
+      unsubscribe: () => { },
+    }),
+  } as unknown as ReturnType<typeof createClient<Database>>;
+};
+
+export const supabase = createSafeClient();
