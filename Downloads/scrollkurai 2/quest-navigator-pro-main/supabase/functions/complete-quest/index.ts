@@ -265,14 +265,8 @@ Deno.serve(async (req) => {
         console.error('[complete-quest] BG: Challenge update failed:', e);
       }
 
-      try {
-        await supabaseClient.functions.invoke('track-league-participation', {
-          headers: { Authorization: authHeader },
-          body: { xp_earned: result.xp_awarded },
-        });
-      } catch (e) {
-        console.error('[complete-quest] BG: League update failed:', e);
-      }
+      // NOTE: League updates are now handled by the on_quest_completed() database trigger
+      // This is atomic & idempotent - no Edge Function needed
 
       try {
         await supabaseClient.functions.invoke('track-analytics', {

@@ -76,7 +76,7 @@ export const LeagueLeaderboard = () => {
       // Current RPC is fine for <10k users but will slow at scale
       // See: https://supabase.com/docs/guides/database/optimization
       const { data, error } = await supabase.rpc('get_league_leaderboard', {
-        league_tier_param: selectedTier as 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond',
+        league_tier_param: selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1), // Convert 'bronze' -> 'Bronze'
       });
 
       if (error) {
