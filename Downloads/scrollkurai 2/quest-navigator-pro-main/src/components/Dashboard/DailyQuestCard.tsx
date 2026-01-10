@@ -204,8 +204,8 @@ export const DailyQuestCard = ({ onQuestComplete }: DailyQuestCardProps) => {
               ? 'bg-muted/30 border-dashed border-border'
               : 'bg-muted/50 border-border'
             }`}>
-            <p className={`text-lg font-medium ${isPending ? 'blur-sm select-none' : ''}`}>
-              {isPending ? "Quest content hidden until accepted..." : quest.content}
+            <p className="text-lg font-medium">
+              {quest.content}
             </p>
           </div>
 
